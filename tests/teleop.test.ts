@@ -79,20 +79,19 @@ describe("the goal is never leaked to the listener", () => {
   });
 });
 
-describe("control key: novice progressive reveal vs expert full", () => {
-  it("novice: absent before any press, then only discovered keys", () => {
+describe("control key: novice never sees it vs expert full", () => {
+  it("novice: control key absent — stays absent even after pressing keys", () => {
     const c = cond({ keys: { sceneLabels: "none", partsKey: false, controlKey: false } });
     let s = teleopTask.init(c.seed, c) as TeleopState;
     let v = teleopTask.listenerView(s, c) as any;
-    expect(v.keys[0].entries).toBeUndefined(); // absent — nothing discovered
+    expect(v.keys[0].entries).toBeUndefined(); // absent
 
-    s = teleopTask.apply(s, { type: "key", key: "Z" }); // discover Z→up
+    s = teleopTask.apply(s, { type: "key", key: "Z" });
+    s = teleopTask.apply(s, { type: "key", key: "R" });
     v = teleopTask.listenerView(s, c) as any;
-    expect(v.keys[0].entries).toEqual({ Z: "up" });
-
-    s = teleopTask.apply(s, { type: "key", key: "R" }); // discover R→right
-    v = teleopTask.listenerView(s, c) as any;
-    expect(v.keys[0].entries).toEqual({ Z: "up", R: "right" });
+    expect(v.keys[0].entries).toBeUndefined(); // STILL absent — no reveal from pressing
+    // and the mapping never leaks into the view
+    expect(JSON.stringify(v)).not.toContain('"right"');
   });
 
   it("expert: full control key from the start", () => {
@@ -131,6 +130,23 @@ describe("every keypress costs budget", () => {
       const acts = events.filter((e) => e.ev === "listener_action") as any[];
       expect(Math.min(...acts.map((a) => a.budgetLeft))).toBe(0);
     }
+  });
+});
+
+describe("open yard with landmarks", () => {
+  it("landmarks are shared with the listener; goal stays hidden", () => {
+    const c = cond({ scene: "teleop_yard" });
+    const s = teleopTask.init(c.seed, c);
+    const v = teleopTask.listenerView(s, c) as any;
+    expect(v.world.landmarks.length).toBeGreaterThan(0);
+    expect(v.world.landmarks.some((l: any) => l.name === "apple")).toBe(true);
+    expect(v.world.goal).toBeUndefined();
+  });
+
+  it("oracle still solves the open yard", async () => {
+    const c = cond({ scene: "teleop_yard", budget: 60 });
+    const { outcome } = await collect(c, oracleTeleopBot);
+    expect(outcome.correct).toBe(true);
   });
 });
 

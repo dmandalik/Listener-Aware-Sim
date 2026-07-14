@@ -155,13 +155,27 @@ export function loadMap(name: string): MapLegend {
 
 export const zTeleopMap = z.object({
   scene: z.string(),
-  grid: z.array(z.string()).min(1), // '#' wall, '.' floor
+  grid: z.array(z.string()).min(1), // '#' wall, '.' floor (open yard: borders only)
   start: z.tuple([z.number().int(), z.number().int()]),
   goal: z.tuple([z.number().int(), z.number().int()]),
   /** Letter → direction. The listener presses letters; expert holds this key. */
   controlMap: z.record(z.string(), z.enum(["up", "down", "left", "right"])),
   /** Every pressable letter (mapped letters + optional decoys). */
   keypad: z.array(z.string()).min(1),
+  /**
+   * Landmarks scattered across the yard (icon = emoji). They give the speaker a
+   * shared reference frame ("drive to the duck") and are visible to EVERY listener.
+   * Fixed positions ⇒ identical scenario for everyone.
+   */
+  landmarks: z
+    .array(
+      z.object({
+        name: z.string(),
+        icon: z.string(),
+        pos: z.tuple([z.number().int(), z.number().int()]),
+      }),
+    )
+    .default([]),
 });
 
 export type TeleopMap = z.infer<typeof zTeleopMap>;

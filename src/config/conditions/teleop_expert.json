@@ -1,13 +1,13 @@
 {
   "taskId": "teleop",
-  "scene": "teleop_corridor",
+  "scene": "teleop_yard",
   "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": true },
   "viewpoint": "aligned",
-  "budget": 30,
+  "budget": 50,
   "timeoutMs": 300000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
-  "utteranceSource": { "text": "Press R four times to go right, then G twice to go down — that reaches the goal." },
+  "utteranceSource": { "text": "Drive to the apple 🍎, then go straight down two tiles — the goal is right there." },
   "allowFollowups": false,
   "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
   "seed": 1

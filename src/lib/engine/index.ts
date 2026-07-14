@@ -27,6 +27,7 @@ export function loadBuiltinMaps(): void {
   registerRetrievalMap(loadMap("retrieval_6room"));
   registerRetrievalMap(loadMap("retrieval_facility"));
   registerTeleopMap(loadTeleopMap("teleop_corridor"));
+  registerTeleopMap(loadTeleopMap("teleop_yard"));
   mapsLoaded = true;
 }
 

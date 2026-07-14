@@ -29,7 +29,7 @@ import type { EventInput } from "@/lib/events";
 import type { TaskEventAdapter } from "@/lib/engine/runner";
 import { DELTA, resolveDir, type Dir } from "@/lib/engine/viewpoint";
 
-const DEFAULT_SCENE = "teleop_corridor";
+const DEFAULT_SCENE = "teleop_yard";
 
 const MAPS = new Map<string, TeleopMap>();
 export function registerTeleopMap(m: TeleopMap): void {
@@ -37,6 +37,12 @@ export function registerTeleopMap(m: TeleopMap): void {
 }
 
 type CellType = "wall" | "floor";
+
+export interface Landmark {
+  name: string;
+  icon: string;
+  pos: [number, number];
+}
 
 export interface TeleopWorld {
   scene: string;
@@ -47,6 +53,7 @@ export interface TeleopWorld {
   goal: [number, number];
   controlMap: Record<string, Dir>;
   keypad: string[];
+  landmarks: Landmark[];
 }
 
 export interface TeleopState {
@@ -96,6 +103,7 @@ export const teleopTask: Task<TeleopState, TeleopAction> = {
       goal: map.goal,
       controlMap: map.controlMap as Record<string, Dir>,
       keypad: map.keypad,
+      landmarks: (map.landmarks ?? []) as Landmark[],
     };
     return {
       world,
@@ -134,20 +142,12 @@ export const teleopTask: Task<TeleopState, TeleopAction> = {
   listenerView(s: TeleopState, cond: Condition): ListenerView {
     const world = s.world;
 
-    // Control key: expert sees the whole map; novice sees only what they've
-    // discovered by pressing (progressive reveal). Absent entirely if empty.
-    let controlPanel: RenderedKeyPanel;
-    if (cond.keys.controlKey) {
-      controlPanel = { id: "control", label: "Controls", entries: world.controlMap };
-    } else if (s.discovered.length > 0) {
-      const entries: Record<string, string> = {};
-      for (const k of s.discovered) {
-        if (world.controlMap[k]) entries[k] = world.controlMap[k]!;
-      }
-      controlPanel = { id: "control", label: "Controls", entries };
-    } else {
-      controlPanel = { id: "control", label: "Controls" }; // absent (nothing discovered yet)
-    }
+    // Control key: expert sees the whole map. Novice NEVER sees what a key does —
+    // the panel is absent and the only feedback is the robot moving (or not) on
+    // the grid; they must infer the mapping themselves (§6).
+    const controlPanel: RenderedKeyPanel = cond.keys.controlKey
+      ? { id: "control", label: "Controls", entries: world.controlMap }
+      : { id: "control", label: "Controls" }; // absent for novice
 
     const listenerWorld = {
       scene: world.scene,
@@ -158,8 +158,8 @@ export const teleopTask: Task<TeleopState, TeleopAction> = {
       // GOAL WITHHELD (§6): the listener never receives the goal position.
       pos: s.pos,
       keypad: world.keypad,
-      // Which keypad letters the listener has learned (for UI hinting only).
-      discovered: s.discovered,
+      // Landmarks ARE shared with the listener — the reference frame for the route.
+      landmarks: world.landmarks,
     };
 
     return {

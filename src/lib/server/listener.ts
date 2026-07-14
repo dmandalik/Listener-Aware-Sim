@@ -64,12 +64,26 @@ export interface SpeakerBoard {
   }>;
 }
 
+/** The speaker's teleop track: full grid WITH the goal (which the driver can't see). */
+export interface TeleopSpeakerBoard {
+  scene: string;
+  cells: ("wall" | "floor")[][];
+  width: number;
+  height: number;
+  start: [number, number];
+  goal: [number, number];
+  keypad: string[];
+  landmarks: Array<{ name: string; icon: string; pos: [number, number] }>;
+}
+
 export interface SpeakerData {
-  world: SpeakerBoard;
-  partsKey: Record<string, string>;
+  taskId: TaskId;
   description: string;
   prompt: string;
   savedUtterance: string | null;
+  // Exactly one of the following is populated, per task.
+  retrieval?: { world: SpeakerBoard; partsKey: Record<string, string> };
+  teleop?: { world: TeleopSpeakerBoard; controlMap: Record<string, string> };
 }
 
 export interface TrialPayload {
@@ -151,7 +165,8 @@ function withAssignment(cond: Condition, assignment: Assignment | null): Conditi
 
 export type ViewAs = "novice" | "expert" | "speaker";
 
-// The speaker's brief. Config-driven per task later; a constant for retrieval now.
+// The speaker's brief per task. Same STRUCTURE everywhere (description + prompt +
+// compose box); the words and what's shown differ by task.
 const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
   retrieval: {
     description:
@@ -162,6 +177,15 @@ const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
     prompt:
       "Write ONE message that tells a completely new helper exactly how to find and pick up " +
       "the highlighted part. You get a single message — make it count.",
+  },
+  teleop: {
+    description:
+      "A person will drive this robot to the goal (marked below). But they CANNOT see the goal, " +
+      "and the drive keys are mapped to arbitrary letters they don't know. You can see everything: " +
+      "the full track, the goal, and which letter moves the robot which way. ",
+    prompt:
+      "Write ONE message that gets a new driver to the goal. You can spend it on the route, on the " +
+      "key mapping, or both — but you only get a single message.",
   },
 };
 
@@ -386,7 +410,6 @@ async function buildSpeakerData(
   const task = getTask(cond.taskId);
   const sv = task.speakerView(state) as any;
   const w = sv.world;
-  const partsPanel = (sv.keys as any[]).find((k) => k.id === "parts");
   const brief = SPEAKER_BRIEF[cond.taskId] ?? { description: "", prompt: "" };
 
   // Any utterance this session already saved for this (task, seed) trial.
@@ -403,26 +426,54 @@ async function buildSpeakerData(
     )
     .orderBy(desc(utterances.id));
 
-  return {
-    world: {
-      scene: w.scene,
-      cells: w.geom.cells,
-      roomOf: w.geom.roomOf,
-      width: w.geom.width,
-      height: w.geom.height,
-      rooms: w.rooms,
-      objects: (w.objects as any[]).map((o) => ({
-        id: o.id,
-        symbol: o.symbol,
-        pos: o.pos,
-        part: o.part,
-        isTarget: o.id === w.target,
-      })),
-    },
-    partsKey: partsPanel?.entries ?? {},
+  const base = {
+    taskId: cond.taskId,
     description: brief.description,
     prompt: brief.prompt,
     savedUtterance: (prior[0] as any)?.text ?? null,
+  };
+
+  if (cond.taskId === "teleop") {
+    return {
+      ...base,
+      teleop: {
+        world: {
+          scene: w.scene,
+          cells: w.cells,
+          width: w.width,
+          height: w.height,
+          start: w.start,
+          goal: w.goal, // speaker CAN see the goal
+          keypad: w.keypad,
+          landmarks: w.landmarks,
+        },
+        controlMap: w.controlMap,
+      },
+    };
+  }
+
+  // retrieval (default)
+  const partsPanel = (sv.keys as any[]).find((k) => k.id === "parts");
+  return {
+    ...base,
+    retrieval: {
+      world: {
+        scene: w.scene,
+        cells: w.geom.cells,
+        roomOf: w.geom.roomOf,
+        width: w.geom.width,
+        height: w.geom.height,
+        rooms: w.rooms,
+        objects: (w.objects as any[]).map((o) => ({
+          id: o.id,
+          symbol: o.symbol,
+          pos: o.pos,
+          part: o.part,
+          isTarget: o.id === w.target,
+        })),
+      },
+      partsKey: partsPanel?.entries ?? {},
+    },
   };
 }
 

@@ -341,6 +341,25 @@ button {
   padding: 1px 5px;
   border-radius: 999px;
 }
+.tele-landmark {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+}
+.tele-goal {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a6a1e;
+  background: rgba(224, 165, 63, 0.22);
+  padding: 1px 5px;
+  border-radius: 999px;
+  z-index: 3;
+}
 .keypad {
   display: flex;
   gap: 8px;

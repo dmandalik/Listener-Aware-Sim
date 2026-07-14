@@ -1,0 +1,26 @@
+{
+  "scene": "teleop_yard",
+  "grid": [
+    "############",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "############"
+  ],
+  "start": [1, 1],
+  "goal": [8, 5],
+  "controlMap": { "Z": "up", "G": "down", "R": "right", "N": "left" },
+  "keypad": ["Z", "G", "R", "N", "Q", "X", "B", "M"],
+  "landmarks": [
+    { "name": "rubber duck", "icon": "🦆", "pos": [3, 2] },
+    { "name": "soccer ball", "icon": "⚽", "pos": [8, 1] },
+    { "name": "balloon", "icon": "🎈", "pos": [2, 5] },
+    { "name": "cactus", "icon": "🌵", "pos": [5, 4] },
+    { "name": "apple", "icon": "🍎", "pos": [8, 3] },
+    { "name": "star", "icon": "⭐", "pos": [4, 6] },
+    { "name": "key", "icon": "🔑", "pos": [10, 6] }
+  ]
+}

@@ -334,7 +334,6 @@ export default function ListenerPage() {
                 </p>
                 <Keypad
                   keys={teleWorld.keypad}
-                  discovered={teleWorld.discovered}
                   controlKey={controlKey?.entries}
                   onPress={pressKey}
                   disabled={phase !== "playing"}

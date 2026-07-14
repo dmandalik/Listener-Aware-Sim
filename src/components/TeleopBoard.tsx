@@ -6,6 +6,12 @@
 
 export type TeleopCell = "wall" | "floor";
 
+export interface TeleopLandmark {
+  name: string;
+  icon: string;
+  pos: [number, number];
+}
+
 export interface TeleopListenerWorld {
   scene: string;
   cells: TeleopCell[][];
@@ -14,7 +20,9 @@ export interface TeleopListenerWorld {
   start: [number, number];
   pos: [number, number];
   keypad: string[];
-  discovered: string[];
+  landmarks: TeleopLandmark[];
+  /** Goal — present ONLY on the speaker's board; the listener never receives it. */
+  goal?: [number, number];
 }
 
 function cellSize(width: number): number {
@@ -22,7 +30,7 @@ function cellSize(width: number): number {
 }
 
 export function TeleopBoard({ world }: { world: TeleopListenerWorld }) {
-  const { width, height, cells, pos, start } = world;
+  const { width, height, cells, pos, start, goal, landmarks } = world;
   const CELL = cellSize(width);
 
   return (
@@ -48,6 +56,28 @@ export function TeleopBoard({ world }: { world: TeleopListenerWorld }) {
         <span>start</span>
       </div>
 
+      {/* landmarks — visible to everyone; the shared reference frame for the route */}
+      {(landmarks ?? []).map((lm) => (
+        <div
+          key={lm.name}
+          className="tele-landmark"
+          title={lm.name}
+          style={{ left: lm.pos[0] * CELL, top: lm.pos[1] * CELL, width: CELL, height: CELL }}
+        >
+          <span style={{ fontSize: CELL * 0.55, lineHeight: 1 }}>{lm.icon}</span>
+        </div>
+      ))}
+
+      {/* goal marker — speaker board only (the listener never receives `goal`) */}
+      {goal && (
+        <div
+          className="cell is-target"
+          style={{ position: "absolute", left: goal[0] * CELL, top: goal[1] * CELL, width: CELL, height: CELL }}
+        >
+          <span className="tele-goal">goal</span>
+        </div>
+      )}
+
       {/* robot token */}
       <div
         className="token"
@@ -59,14 +89,12 @@ export function TeleopBoard({ world }: { world: TeleopListenerWorld }) {
 
 export function Keypad({
   keys,
-  discovered,
   controlKey,
   onPress,
   disabled,
 }: {
   keys: string[];
-  discovered: string[];
-  controlKey?: Record<string, string>; // known mappings (expert full, novice discovered)
+  controlKey?: Record<string, string>; // known mappings — expert only; absent for novice
   onPress: (key: string) => void;
   disabled?: boolean;
 }) {
@@ -83,7 +111,8 @@ export function Keypad({
             disabled={disabled}
           >
             <span className="letter">{k}</span>
-            <span className="dir">{known ? dirArrow(dir!) : discovered.includes(k) ? "·" : ""}</span>
+            {/* Novice sees NO hint about what the key does. */}
+            <span className="dir">{known ? dirArrow(dir!) : ""}</span>
           </button>
         );
       })}

@@ -6,8 +6,13 @@
 
 import { useRef, useState } from "react";
 import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
+import { TeleopBoard, type TeleopListenerWorld } from "@/components/TeleopBoard";
 import { RobotAvatar } from "@/components/RobotAvatar";
 import type { SpeakerData } from "@/lib/server/listener";
+
+function dirArrow(dir: string): string {
+  return dir === "up" ? "↑" : dir === "down" ? "↓" : dir === "left" ? "←" : dir === "right" ? "→" : "";
+}
 
 export function SpeakerPanel({
   data,
@@ -46,25 +51,54 @@ export function SpeakerPanel({
       </div>
 
       <div className="play-area">
-        <div className="board-wrap">
-          <GameBoard world={data.world as unknown as RetrievalListenerWorld} />
-          <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <span className="legend-target"><span className="ring" /> = the part to retrieve</span>
-            <span>You see the whole building. The helper will not.</span>
-          </p>
-        </div>
-
-        <div className="side">
-          <div className="card legend">
-            <h4>Parts Key</h4>
-            {Object.entries(data.partsKey).map(([sym, name]) => (
-              <div className="row" key={sym}>
-                <span className="sym">{sym}</span>
-                <span className="name">{name}</span>
+        {data.taskId === "teleop" && data.teleop ? (
+          <>
+            <div className="board-wrap">
+              <TeleopBoard
+                world={{
+                  ...data.teleop.world,
+                  pos: data.teleop.world.start,
+                } as unknown as TeleopListenerWorld}
+              />
+              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="legend-target"><span className="ring" /> = the goal</span>
+                <span>You see the whole track and the goal. The driver sees neither.</span>
+              </p>
+            </div>
+            <div className="side">
+              <div className="card legend">
+                <h4>Controls</h4>
+                {Object.entries(data.teleop.controlMap).map(([k, dir]) => (
+                  <div className="row" key={k}>
+                    <span className="sym">{k}</span>
+                    <span className="name">{dir} {dirArrow(dir)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="board-wrap">
+              <GameBoard world={data.retrieval!.world as unknown as RetrievalListenerWorld} />
+              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                <span className="legend-target"><span className="ring" /> = the part to retrieve</span>
+                <span>You see the whole building. The helper will not.</span>
+              </p>
+            </div>
+            <div className="side">
+              <div className="card legend">
+                <h4>Parts Key</h4>
+                {Object.entries(data.retrieval!.partsKey).map(([sym, name]) => (
+                  <div className="row" key={sym}>
+                    <span className="sym">{sym}</span>
+                    <span className="name">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="card compose">
@@ -74,7 +108,11 @@ export function SpeakerPanel({
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. Go up two rooms and left to the far corner; grab the star-shaped part…"
+          placeholder={
+            data.taskId === "teleop"
+              ? "e.g. Drive right to the apple, then down two tiles to the goal…"
+              : "e.g. Go up two rooms and left to the far corner; grab the star-shaped part…"
+          }
         />
         <div className="row">
           <span className="saved">{saved ? "✓ Saved to the pool" : " "}</span>
