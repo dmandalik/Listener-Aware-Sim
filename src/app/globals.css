@@ -323,6 +323,65 @@ button {
   white-space: nowrap;
 }
 
+/* ── Teleop ─────────────────────────────────────────────────────────────────*/
+.tele-start {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+  pointer-events: none;
+}
+.tele-start span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent-wash);
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+.keypad {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.key {
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  background: var(--panel);
+  transition: transform 90ms ease, border-color 140ms ease;
+}
+.key:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+}
+.key .letter {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+.key .dir {
+  font-size: 12px;
+  color: var(--ink-soft);
+  height: 13px;
+  line-height: 1;
+}
+.key.known {
+  border-color: var(--accent);
+}
+.key.known .dir {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
 /* ── Side panel ─────────────────────────────────────────────────────────────*/
 .side {
   display: grid;

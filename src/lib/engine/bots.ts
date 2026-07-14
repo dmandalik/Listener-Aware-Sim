@@ -14,6 +14,7 @@ import { intBelow } from "./rng";
 import { DELTA, resolveDir, type Dir } from "./viewpoint";
 import type { BotPolicy } from "./runner";
 import type { RetrievalAction, RetrievalState } from "@/lib/tasks/retrieval";
+import type { TeleopAction, TeleopState } from "@/lib/tasks/teleop";
 
 export const randomBot: BotPolicy<RetrievalState, RetrievalAction> = ({
   legal,
@@ -76,3 +77,46 @@ export const oracleRetrievalBot: BotPolicy<RetrievalState, RetrievalAction> = ({
   // so emitting resolveDir(worldDir) makes apply() resolve back to worldDir.
   return { type: "move", dir: resolveDir(worldDir, state.cond.viewpoint) };
 };
+
+// ── teleop ───────────────────────────────────────────────────────────────────
+
+function teleopStepTowardGoal(s: TeleopState): Dir | null {
+  const { cells, width, height, goal } = s.world;
+  const key = (c: number, r: number) => `${c},${r}`;
+  const seen = new Set<string>([key(s.pos[0], s.pos[1])]);
+  const queue: Array<[number, number, Dir | null]> = [[s.pos[0], s.pos[1], null]];
+  while (queue.length) {
+    const [c, r, firstDir] = queue.shift()!;
+    if (c === goal[0] && r === goal[1] && firstDir) return firstDir;
+    for (const dir of ["up", "down", "left", "right"] as Dir[]) {
+      const [dx, dy] = DELTA[dir];
+      const nc = c + dx;
+      const nr = r + dy;
+      if (nr < 0 || nr >= height || nc < 0 || nc >= width) continue;
+      if (cells[nr]![nc] === "wall") continue;
+      if (seen.has(key(nc, nr))) continue;
+      seen.add(key(nc, nr));
+      queue.push([nc, nr, firstDir ?? dir]);
+    }
+  }
+  return null;
+}
+
+/** Knows the control map + path; presses the correct key each step (success path). */
+export const oracleTeleopBot: BotPolicy<TeleopState, TeleopAction> = ({ state }) => {
+  const worldDir = teleopStepTowardGoal(state);
+  if (!worldDir) return { type: "key", key: state.world.keypad[0]! };
+  // Find the key whose control-map direction resolves (under viewpoint) to worldDir.
+  const wantMapped = resolveDir(worldDir, state.cond.viewpoint);
+  const key = Object.keys(state.world.controlMap).find(
+    (k) => state.world.controlMap[k] === wantMapped,
+  );
+  return { type: "key", key: key ?? state.world.keypad[0]! };
+};
+
+/** Presses random keypad letters — simulates a novice mashing to discover / to
+ *  exhaust the budget. */
+export const keyMashTeleopBot: BotPolicy<TeleopState, TeleopAction> = ({ state, rng }) => ({
+  type: "key",
+  key: state.world.keypad[intBelow(rng, state.world.keypad.length)]!,
+});

@@ -1,0 +1,14 @@
+{
+  "scene": "teleop_corridor",
+  "grid": [
+    "#######",
+    "#.....#",
+    "#.###.#",
+    "#.....#",
+    "#######"
+  ],
+  "start": [1, 1],
+  "goal": [5, 3],
+  "controlMap": { "Z": "up", "G": "down", "R": "right", "N": "left" },
+  "keypad": ["Z", "G", "R", "N", "Q", "X"]
+}

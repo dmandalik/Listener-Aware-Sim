@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TrialPayload, ViewAs } from "@/lib/server/listener";
 import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
+import { TeleopBoard, Keypad, type TeleopListenerWorld } from "@/components/TeleopBoard";
 import { RobotAvatar, type RobotMood } from "@/components/RobotAvatar";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 
@@ -66,7 +67,7 @@ export default function ListenerPage() {
     const req = sid
       ? post("/api/listener/resume", { sessionId: sid })
       : post("/api/listener/start", {
-          studyName: "listener_pilot",
+          studyName: qs.get("study") ?? "listener_pilot", // dev: ?study=teleop_pilot
           prolific: {
             pid: qs.get("PROLIFIC_PID") ?? undefined,
             studyId: qs.get("STUDY_ID") ?? undefined,
@@ -104,11 +105,24 @@ export default function ListenerPage() {
 
   const move = useCallback((dir: string) => send({ type: "move", dir }), [send]);
   const pick = useCallback((objectId: string) => send({ type: "pick", objectId }), [send]);
+  const pressKey = useCallback((key: string) => send({ type: "key", key }), [send]);
 
-  // Keyboard control. Disabled in the Speaker view (the speaker cannot act).
+  const taskId = payload?.taskId;
+  const teleopKeypad: string[] = (payload?.view?.world as any)?.keypad ?? [];
+
+  // Keyboard control. Task-aware. Disabled in the Speaker view.
   useEffect(() => {
     if (phase !== "playing" || viewAs === "speaker") return;
     const onKey = (e: KeyboardEvent) => {
+      if (taskId === "teleop") {
+        // Any keypad letter is a press (mapped or decoy — both cost budget, §6).
+        const k = e.key.toUpperCase();
+        if (teleopKeypad.includes(k)) {
+          e.preventDefault();
+          void pressKey(k);
+        }
+        return;
+      }
       const map: Record<string, string> = {
         ArrowUp: "up", w: "up", W: "up",
         ArrowDown: "down", s: "down", S: "down",
@@ -123,7 +137,7 @@ export default function ListenerPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, move, viewAs]);
+  }, [phase, move, pressKey, viewAs, taskId, teleopKeypad]);
 
   // Timeout countdown. Paused in the Speaker view (no trial clock while composing).
   useEffect(() => {
@@ -238,8 +252,11 @@ export default function ListenerPage() {
   }
 
   if (!payload || !payload.view) return null;
+  const isTeleop = payload.taskId === "teleop";
   const world = payload.view.world as unknown as RetrievalListenerWorld;
+  const teleWorld = payload.view.world as unknown as TeleopListenerWorld;
   const partsKey = payload.view.keys.find((k) => k.id === "parts");
+  const controlKey = payload.view.keys.find((k) => k.id === "control");
   const budgetLeft = payload.view.budgetLeft;
   const budgetPct = Math.max(0, Math.round((budgetLeft / budgetTotal) * 100));
   const low = budgetLeft <= Math.max(3, budgetTotal * 0.2);
@@ -258,7 +275,9 @@ export default function ListenerPage() {
           <RobotAvatar mood={phase === "playing" ? "waiting" : endMood} size={44} />
           <div>
             <div className="eyebrow">Mission {payload.missionNumber} of {payload.missionTotal}</div>
-            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Retrieve what the robot needs</div>
+            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+              {payload.taskId === "teleop" ? "Drive the robot to the goal" : "Retrieve what the robot needs"}
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -306,18 +325,37 @@ export default function ListenerPage() {
 
         <div className="play-area">
           <div className="board-wrap">
-            <GameBoard world={world} onPick={pick} disabled={phase !== "playing"} />
-            <p className="hint">
-              Move with <kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd> (or <kbd>WASD</kbd>).
-              Click an item to pick it up — you get <b>one</b> pick, so choose well.
-            </p>
+            {isTeleop ? (
+              <>
+                <TeleopBoard world={teleWorld} />
+                <p className="hint">
+                  Press keys to drive the robot to the goal (you can&rsquo;t see where it is).
+                  <b> Every press costs a move</b> — even ones that do nothing.
+                </p>
+                <Keypad
+                  keys={teleWorld.keypad}
+                  discovered={teleWorld.discovered}
+                  controlKey={controlKey?.entries}
+                  onPress={pressKey}
+                  disabled={phase !== "playing"}
+                />
+              </>
+            ) : (
+              <>
+                <GameBoard world={world} onPick={pick} disabled={phase !== "playing"} />
+                <p className="hint">
+                  Move with <kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd> (or <kbd>WASD</kbd>).
+                  Click an item to pick it up — you get <b>one</b> pick, so choose well.
+                </p>
+              </>
+            )}
           </div>
 
           <div className="side">
             <div className="card budget">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-soft)" }}>
-                  Moves left
+                  {isTeleop ? "Presses left" : "Moves left"}
                 </span>
                 <b style={{ fontVariantNumeric: "tabular-nums" }}>{budgetLeft}</b>
               </div>
@@ -325,36 +363,53 @@ export default function ListenerPage() {
                 <div className={`fill ${low ? "low" : ""}`} style={{ width: `${budgetPct}%` }} />
               </div>
               <div className="nums">
-                <span>each move costs 1</span>
+                <span>{isTeleop ? "each press costs 1" : "each move costs 1"}</span>
                 <span>{budgetTotal} total</span>
               </div>
             </div>
 
-            {/* Parts key — rendered ONLY when the listener has it. When absent it
-                is not shown at all (§11 guardrail: absent, not greyed). */}
-            {partsKey?.entries && (
-              <div className="card legend">
-                <h4>Robot Parts</h4>
-                {Object.entries(partsKey.entries).map(([sym, name]) => (
-                  <div className="row" key={sym}>
-                    <span className="sym">{sym}</span>
-                    <span className="name">{name}</span>
+            {isTeleop ? (
+              // Control key — expert has it all; novice fills in as they discover
+              // (absent until the first discovery). §11 guardrail: absent, not greyed.
+              controlKey?.entries && Object.keys(controlKey.entries).length > 0 ? (
+                <div className="card legend">
+                  <h4>Controls</h4>
+                  {Object.entries(controlKey.entries).map(([k, dir]) => (
+                    <div className="row" key={k}>
+                      <span className="sym">{k}</span>
+                      <span className="name">{dir}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            ) : (
+              <>
+                {/* Parts key — rendered ONLY when the listener has it (§11). */}
+                {partsKey?.entries && (
+                  <div className="card legend">
+                    <h4>Robot Parts</h4>
+                    {Object.entries(partsKey.entries).map(([sym, name]) => (
+                      <div className="row" key={sym}>
+                        <span className="sym">{sym}</span>
+                        <span className="name">{name}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            <div className="card legend">
-              <h4>You are</h4>
-              <div className="row">
-                <span className="token" style={{ position: "static", width: 18, height: 18, transition: "none" }} />
-                <span className="name">
-                  {world.room && world.rooms[world.room]
-                    ? `in the ${world.rooms[world.room]}`
-                    : "somewhere in the building"}
-                </span>
-              </div>
-            </div>
+                <div className="card legend">
+                  <h4>You are</h4>
+                  <div className="row">
+                    <span className="token" style={{ position: "static", width: 18, height: 18, transition: "none" }} />
+                    <span className="name">
+                      {world.room && world.rooms[world.room]
+                        ? `in the ${world.rooms[world.room]}`
+                        : "somewhere in the building"}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

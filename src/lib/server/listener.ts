@@ -90,7 +90,10 @@ export interface TrialPayload {
 
 // ── Action decoding (task-specific) ──────────────────────────────────────────
 
-type AnyAction = { type: "move"; dir: string } | { type: "pick"; objectId: string };
+type AnyAction =
+  | { type: "move"; dir: string }
+  | { type: "pick"; objectId: string }
+  | { type: "key"; key: string };
 
 function decodeAction(taskId: TaskId, raw: unknown): AnyAction {
   const r = raw as any;
@@ -102,12 +105,18 @@ function decodeAction(taskId: TaskId, raw: unknown): AnyAction {
       return { type: "pick", objectId: r.objectId };
     }
   }
+  if (taskId === "teleop") {
+    if (r?.type === "key" && typeof r.key === "string") {
+      return { type: "key", key: r.key.toUpperCase() };
+    }
+  }
   throw new Error(`Malformed action for task "${taskId}": ${JSON.stringify(raw)}`);
 }
 
 function sameAction(a: any, b: AnyAction): boolean {
   if (a.type !== b.type) return false;
   if (a.type === "move") return a.dir === (b as any).dir;
+  if (a.type === "key") return a.key === (b as any).key;
   return a.objectId === (b as any).objectId;
 }
 
@@ -135,12 +144,8 @@ async function loadPlan(
 
 /** Lock the listener's familiarity to their assignment (ALWAYS applied, not dev). */
 function withAssignment(cond: Condition, assignment: Assignment | null): Condition {
-  if (assignment === "expert") {
-    return { ...cond, keys: { ...cond.keys, sceneLabels: "all", partsKey: true } };
-  }
-  if (assignment === "novice") {
-    return { ...cond, keys: { ...cond.keys, sceneLabels: "current", partsKey: false } };
-  }
+  if (assignment === "expert") return { ...cond, keys: { ...cond.keys, ...EXPERT_KEYS } };
+  if (assignment === "novice") return { ...cond, keys: { ...cond.keys, ...NOVICE_KEYS } };
   return cond; // speaker / unassigned → condition's own keys
 }
 
@@ -167,10 +172,15 @@ const DEV_TOGGLE_ALLOWED = process.env.NODE_ENV !== "production";
 
 /** Override the LISTENER's keys for view rendering only. Gameplay is unaffected
  *  (legality/apply depend on position + viewpoint, never on familiarity). */
+// novice/expert familiarity spans all three key types (scene labels, parts key,
+// control key) so the distinction is meaningful for every task.
+const EXPERT_KEYS = { sceneLabels: "all", partsKey: true, controlKey: true } as const;
+const NOVICE_KEYS = { sceneLabels: "current", partsKey: false, controlKey: false } as const;
+
 function withViewAs(cond: Condition, viewAs?: ViewAs): Condition {
   if (!viewAs || !DEV_TOGGLE_ALLOWED) return cond;
-  if (viewAs === "expert") return { ...cond, keys: { ...cond.keys, sceneLabels: "all", partsKey: true } };
-  if (viewAs === "novice") return { ...cond, keys: { ...cond.keys, sceneLabels: "current", partsKey: false } };
+  if (viewAs === "expert") return { ...cond, keys: { ...cond.keys, ...EXPERT_KEYS } };
+  if (viewAs === "novice") return { ...cond, keys: { ...cond.keys, ...NOVICE_KEYS } };
   return cond; // "speaker" doesn't override listener keys
 }
 

@@ -1,0 +1,9 @@
+{
+  "id": "teleop_pilot",
+  "role": "listener",
+  "showTrialFeedback": true,
+  "trials": [
+    { "condition": "teleop_novice", "seed": 1 },
+    { "condition": "teleop_expert", "seed": 1 }
+  ]
+}

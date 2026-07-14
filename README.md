@@ -119,7 +119,12 @@ scripts/
       and folding outcomes into per-utterance success (bonus, §12). Configs:
       `speaker_pilot` (Study 1), `listener_replay` (Study 2). Verify:
       `npm run verify:replay`.
-- [ ] M5 — `repair` and `teleop` task plugins
+- [~] **M5 — task plugins.** **`teleop` done** (§6): grid with hidden goal, control
+      map the novice must **discover** (each keypress costs budget; discovered
+      mappings reveal progressively — parallel to the novice room-label reveal),
+      expert holds the full control key; server withholds the goal + hidden map;
+      `action`(key)+`resolved`(dir) logged. Engine + 9 tests + UI (keypad) +
+      browser-verified. Dev: `/listener?study=teleop_pilot`. **`repair` next.**
 - [ ] M6 — Prolific integration (params, consent, mobile block, redirects)
 - [ ] M7 — `/admin` dashboard + exports (CSV/JSONL, bonus CSV, replay viewer)
 - [ ] M8 — Deploy to free tier + 5-person pilot

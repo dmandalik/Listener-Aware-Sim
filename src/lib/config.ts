@@ -148,6 +148,67 @@ export function loadMap(name: string): MapLegend {
   return parseMap(raw, name);
 }
 
+// ── Teleop map (§6) ──────────────────────────────────────────────────────────
+// A grid with a start and goal, plus a control map (letter → direction) that the
+// novice must discover. The control map is AUTHORED (fixed) — like retrieval's
+// fixedLayout, the scenario is identical for everyone; nothing is randomized.
+
+export const zTeleopMap = z.object({
+  scene: z.string(),
+  grid: z.array(z.string()).min(1), // '#' wall, '.' floor
+  start: z.tuple([z.number().int(), z.number().int()]),
+  goal: z.tuple([z.number().int(), z.number().int()]),
+  /** Letter → direction. The listener presses letters; expert holds this key. */
+  controlMap: z.record(z.string(), z.enum(["up", "down", "left", "right"])),
+  /** Every pressable letter (mapped letters + optional decoys). */
+  keypad: z.array(z.string()).min(1),
+});
+
+export type TeleopMap = z.infer<typeof zTeleopMap>;
+
+export function parseTeleopMap(raw: unknown, sourceLabel: string): TeleopMap {
+  const parsed = zTeleopMap.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid teleop map (${sourceLabel}):\n` +
+        parsed.error.issues
+          .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join("\n"),
+    );
+  }
+  const m = parsed.data;
+  const w = m.grid[0]!.length;
+  if (m.grid.some((r) => r.length !== w)) {
+    throw new Error(`Invalid teleop map (${sourceLabel}): grid rows are not equal length`);
+  }
+  const at = ([c, r]: [number, number]) => m.grid[r]?.[c];
+  if (at(m.start) !== ".") {
+    throw new Error(`Invalid teleop map (${sourceLabel}): start ${m.start} is not on floor`);
+  }
+  if (at(m.goal) !== ".") {
+    throw new Error(`Invalid teleop map (${sourceLabel}): goal ${m.goal} is not on floor`);
+  }
+  for (const k of Object.keys(m.controlMap)) {
+    if (!m.keypad.includes(k)) {
+      throw new Error(
+        `Invalid teleop map (${sourceLabel}): controlMap key "${k}" is not in the keypad`,
+      );
+    }
+  }
+  return m;
+}
+
+export function loadTeleopMap(name: string): TeleopMap {
+  const file = join(MAPS_DIR, name.endsWith(".json") ? name : `${name}.json`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    throw new Error(`Cannot read teleop map file "${file}": ${(err as Error).message}`);
+  }
+  return parseTeleopMap(raw, name);
+}
+
 // ── Study plan (§9.1, §8) ────────────────────────────────────────────────────
 // A study is an ordered list of trials. Each trial names a condition file + seed,
 // optionally overriding the utterance. Non-engineers author these as data.
