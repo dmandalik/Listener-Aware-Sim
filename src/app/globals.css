@@ -270,6 +270,18 @@ button {
 .cell.reveal {
   animation: reveal 180ms ease both;
 }
+
+/* Speaker's target highlight — a gold ring. Speaker view only (the listener
+   never receives isTarget). */
+.cell.is-target::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: 2.5px solid var(--gold);
+  box-shadow: 0 0 0 3px rgba(224, 165, 63, 0.25);
+  z-index: 2;
+}
 @keyframes reveal {
   from {
     opacity: 0;
@@ -431,6 +443,65 @@ kbd {
 .overlay p {
   color: var(--ink-soft);
   margin: 0 0 20px;
+}
+
+/* ── Speaker compose ────────────────────────────────────────────────────────*/
+.speaker-brief {
+  padding: 16px 18px;
+  border-left: 4px solid var(--gold);
+}
+.speaker-brief .prompt {
+  margin-top: 10px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.compose {
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+.compose textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.compose textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+.compose .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.compose .saved {
+  color: var(--accent-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.legend-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.legend-target .ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2.5px solid var(--gold);
+  box-shadow: 0 0 0 3px rgba(224, 165, 63, 0.25);
 }
 
 /* ── Dev-only novice/expert toggle ──────────────────────────────────────────*/

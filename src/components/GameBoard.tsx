@@ -12,6 +12,14 @@
 
 export type CellType = "wall" | "floor" | "door";
 
+export interface BoardObject {
+  id: string;
+  symbol: string;
+  pos: [number, number];
+  isTarget?: boolean;
+  part?: string;
+}
+
 export interface RetrievalListenerWorld {
   scene: string;
   cells: CellType[][];
@@ -19,9 +27,10 @@ export interface RetrievalListenerWorld {
   width: number;
   height: number;
   rooms: Record<string, string>;
-  objects: Array<{ id: string; symbol: string; pos: [number, number] }>;
-  pos: [number, number];
-  room: string;
+  objects: BoardObject[];
+  /** Present for the LISTENER (drives fog + token). Absent for the SPEAKER. */
+  pos?: [number, number];
+  room?: string;
 }
 
 // Fit the board into a comfortable width; clamp so small maps aren't huge and
@@ -36,7 +45,7 @@ export function GameBoard({
   disabled,
 }: {
   world: RetrievalListenerWorld;
-  onPick: (objectId: string) => void;
+  onPick?: (objectId: string) => void;
   disabled?: boolean;
 }) {
   const { width, height, cells, roomOf, objects, pos, rooms, room } = world;
@@ -69,7 +78,8 @@ export function GameBoard({
     >
       {cells.flatMap((rowArr, r) =>
         rowArr.map((type, c) => {
-          const fog = type !== "wall" && roomOf[r]?.[c] !== room;
+          // Fog only applies to the listener (when a current room is set).
+          const fog = room != null && type !== "wall" && roomOf[r]?.[c] !== room;
           return <div key={`${c},${r}`} className={`cell ${type}${fog ? " fog" : ""}`} />;
         }),
       )}
@@ -85,11 +95,12 @@ export function GameBoard({
         </div>
       ))}
 
-      {/* current-room objects (clickable) */}
+      {/* objects. Listener: current-room only, clickable. Speaker: all, target
+          ringed, not clickable. */}
       {objects.map((o) => (
         <div
           key={o.id}
-          className="cell reveal"
+          className={`cell reveal${o.isTarget ? " is-target" : ""}`}
           style={{
             position: "absolute",
             left: o.pos[0] * CELL,
@@ -97,22 +108,26 @@ export function GameBoard({
             width: CELL,
             height: CELL,
           }}
+          title={o.part}
         >
           <span
             className="symbol"
-            title={disabled ? undefined : "Pick this up"}
-            onClick={() => !disabled && onPick(o.id)}
+            title={onPick && !disabled ? "Pick this up" : o.part}
+            onClick={() => onPick && !disabled && onPick(o.id)}
+            style={{ cursor: onPick && !disabled ? "pointer" : "default" }}
           >
             {o.symbol}
           </span>
         </div>
       ))}
 
-      {/* the listener token */}
-      <div
-        className="token"
-        style={{ left: pos[0] * CELL + CELL * 0.19, top: pos[1] * CELL + CELL * 0.19 }}
-      />
+      {/* the listener token (absent for the speaker) */}
+      {pos && (
+        <div
+          className="token"
+          style={{ left: pos[0] * CELL + CELL * 0.19, top: pos[1] * CELL + CELL * 0.19 }}
+        />
+      )}
     </div>
   );
 }

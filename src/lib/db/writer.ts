@@ -14,6 +14,7 @@ import {
   participants,
   sessions,
   trials,
+  utterances,
   type ParticipantRow,
   type SessionRow,
 } from "./schema";
@@ -174,6 +175,33 @@ export async function openTrial(a: OpenTrialArgs): Promise<number> {
 export async function setTrialState(trialId: number, state: unknown): Promise<void> {
   const db = await getDb();
   await db.update(trials).set({ state }).where(eq(trials.id, trialId));
+}
+
+// ── Utterances (the speaker pool, §8) ────────────────────────────────────────
+
+export interface InsertUtteranceArgs {
+  taskId: "retrieval" | "repair" | "teleop";
+  seed: number;
+  scene: string;
+  text: string;
+  authorSessionId: string;
+  authorPid?: string | null;
+}
+
+export async function insertUtterance(a: InsertUtteranceArgs): Promise<number> {
+  const db = await getDb();
+  const [row] = await db
+    .insert(utterances)
+    .values({
+      taskId: a.taskId,
+      seed: a.seed,
+      scene: a.scene,
+      text: a.text,
+      authorSessionId: a.authorSessionId,
+      authorPid: a.authorPid ?? null,
+    })
+    .returning({ id: utterances.id });
+  return row.id;
 }
 
 export interface CloseTrialArgs {

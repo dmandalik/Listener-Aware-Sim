@@ -13,15 +13,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { Condition, ListenerView, TaskId } from "@/lib/types";
 import type { EventInput } from "@/lib/events";
 import { loadStudy, type ResolvedTrial } from "@/lib/config";
 import { ensureMigrated, getDb } from "@/lib/db/client";
-import { trials, sessions } from "@/lib/db/schema";
+import { trials, sessions, utterances } from "@/lib/db/schema";
 import {
   closeTrial,
   endSession,
+  insertUtterance,
   markParticipantCompleted,
   openTrial,
   setTrialState,
@@ -43,6 +44,31 @@ interface SessionPlan {
   trials: ResolvedTrial[];
 }
 
+/** The speaker's board: the FULL world (no fog), target flagged. Speaker only. */
+export interface SpeakerBoard {
+  scene: string;
+  cells: ("wall" | "floor" | "door")[][];
+  roomOf: (string | null)[][];
+  width: number;
+  height: number;
+  rooms: Record<string, string>;
+  objects: Array<{
+    id: string;
+    symbol: string;
+    pos: [number, number];
+    part: string;
+    isTarget: boolean;
+  }>;
+}
+
+export interface SpeakerData {
+  world: SpeakerBoard;
+  partsKey: Record<string, string>;
+  description: string;
+  prompt: string;
+  savedUtterance: string | null;
+}
+
 export interface TrialPayload {
   sessionId: string;
   done: boolean; // whole session finished
@@ -56,6 +82,7 @@ export interface TrialPayload {
   terminal: boolean;
   rejected?: boolean; // last action was illegal; view unchanged
   outcome: { correct: boolean; reason: string } | null; // only if terminal && feedback on
+  speaker?: SpeakerData; // present only under the dev "Speaker" view
 }
 
 // ── Action decoding (task-specific) ──────────────────────────────────────────
@@ -95,7 +122,21 @@ async function loadPlan(sessionId: string): Promise<{ plan: SessionPlan; pid: st
   return { plan: row.plan as SessionPlan, pid: row.prolificPid };
 }
 
-export type ViewAs = "novice" | "expert";
+export type ViewAs = "novice" | "expert" | "speaker";
+
+// The speaker's brief. Config-driven per task later; a constant for retrieval now.
+const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
+  retrieval: {
+    description:
+      "A helper robot has broken down inside this building and needs one part retrieved. " +
+      "A person will go in to fetch it — but they can only see the room they are standing in, " +
+      "they don't know the building's layout, and they don't know what any of the parts are. " +
+      "You can see everything: the full map and the target part (highlighted). ",
+    prompt:
+      "Write ONE message that tells a completely new helper exactly how to find and pick up " +
+      "the highlighted part. You get a single message — make it count.",
+  },
+};
 
 // Dev-only representation toggle. HONORED ONLY OUTSIDE PRODUCTION so a real
 // participant can never flip themselves from novice to expert (which would void
@@ -106,11 +147,9 @@ const DEV_TOGGLE_ALLOWED = process.env.NODE_ENV !== "production";
  *  (legality/apply depend on position + viewpoint, never on familiarity). */
 function withViewAs(cond: Condition, viewAs?: ViewAs): Condition {
   if (!viewAs || !DEV_TOGGLE_ALLOWED) return cond;
-  const keys =
-    viewAs === "expert"
-      ? { ...cond.keys, sceneLabels: "all" as const, partsKey: true }
-      : { ...cond.keys, sceneLabels: "none" as const, partsKey: false };
-  return { ...cond, keys };
+  if (viewAs === "expert") return { ...cond, keys: { ...cond.keys, sceneLabels: "all", partsKey: true } };
+  if (viewAs === "novice") return { ...cond, keys: { ...cond.keys, sceneLabels: "none", partsKey: false } };
+  return cond; // "speaker" doesn't override listener keys
 }
 
 function buildPayload(
@@ -270,8 +309,57 @@ async function loadTrialRow(sessionId: string, index: number) {
   return row;
 }
 
+/** Build the speaker's full-world board for a trial (dev speaker view / M4 seed). */
+async function buildSpeakerData(
+  sessionId: string,
+  cond: Condition,
+  state: any,
+): Promise<SpeakerData> {
+  const task = getTask(cond.taskId);
+  const sv = task.speakerView(state) as any;
+  const w = sv.world;
+  const partsPanel = (sv.keys as any[]).find((k) => k.id === "parts");
+  const brief = SPEAKER_BRIEF[cond.taskId] ?? { description: "", prompt: "" };
+
+  // Any utterance this session already saved for this (task, seed) trial.
+  const db = await getDb();
+  const prior = await db
+    .select()
+    .from(utterances)
+    .where(
+      and(
+        eq(utterances.authorSessionId, sessionId),
+        eq(utterances.taskId, cond.taskId),
+        eq(utterances.seed, cond.seed),
+      ),
+    )
+    .orderBy(desc(utterances.id));
+
+  return {
+    world: {
+      scene: w.scene,
+      cells: w.geom.cells,
+      roomOf: w.geom.roomOf,
+      width: w.geom.width,
+      height: w.geom.height,
+      rooms: w.rooms,
+      objects: (w.objects as any[]).map((o) => ({
+        id: o.id,
+        symbol: o.symbol,
+        pos: o.pos,
+        part: o.part,
+        isTarget: o.id === w.target,
+      })),
+    },
+    partsKey: partsPanel?.entries ?? {},
+    description: brief.description,
+    prompt: brief.prompt,
+    savedUtterance: (prior[0] as any)?.text ?? null,
+  };
+}
+
 /** Re-render the current trial view without applying anything (used by the dev
- *  novice/expert toggle to preview a representation). */
+ *  novice/expert/speaker toggle to preview a representation). */
 export async function viewListenerTrial(args: {
   sessionId: string;
   trialIndex: number;
@@ -283,9 +371,49 @@ export async function viewListenerTrial(args: {
   if (!rt) throw new Error(`No trial ${args.trialIndex}`);
   const row = await loadTrialRow(args.sessionId, args.trialIndex);
   if (!row) throw new Error(`Trial ${args.trialIndex} not open`);
-  return buildPayload(args.sessionId, args.trialIndex, plan, row.state as any, rt.condition, {
+
+  const payload = buildPayload(args.sessionId, args.trialIndex, plan, row.state as any, rt.condition, {
     viewAs: args.viewAs,
   });
+
+  // The Speaker view reveals the full world — dev-gated (off in production, §9.6).
+  if (args.viewAs === "speaker" && DEV_TOGGLE_ALLOWED) {
+    payload.speaker = await buildSpeakerData(args.sessionId, rt.condition, row.state as any);
+  }
+  return payload;
+}
+
+/** Persist a speaker's utterance to the pool (§8, §12). */
+export async function saveSpeakerUtterance(args: {
+  sessionId: string;
+  trialIndex: number;
+  text: string;
+  composeMs?: number;
+}): Promise<{ savedUtterance: string }> {
+  await ready();
+  const text = (args.text ?? "").trim();
+  if (!text) throw new Error("Utterance is empty");
+  const { plan, pid } = await loadPlan(args.sessionId);
+  const rt = plan.trials[args.trialIndex];
+  if (!rt) throw new Error(`No trial ${args.trialIndex}`);
+  const cond = rt.condition;
+
+  await insertUtterance({
+    taskId: cond.taskId,
+    seed: cond.seed,
+    scene: cond.scene ?? "",
+    text,
+    authorSessionId: args.sessionId,
+    authorPid: pid,
+  });
+  await writeEvent({
+    ev: "utterance_sent",
+    sid: args.sessionId,
+    trialIndex: args.trialIndex,
+    text,
+    composeMs: args.composeMs ?? 0,
+  });
+  return { savedUtterance: text };
 }
 
 export async function applyListenerAction(args: {

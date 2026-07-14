@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TrialPayload, ViewAs } from "@/lib/server/listener";
 import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
 import { RobotAvatar, type RobotMood } from "@/components/RobotAvatar";
+import { SpeakerPanel } from "@/components/SpeakerPanel";
 
 type Phase = "loading" | "playing" | "trialEnd" | "done" | "error";
 
@@ -99,9 +100,9 @@ export default function ListenerPage() {
   const move = useCallback((dir: string) => send({ type: "move", dir }), [send]);
   const pick = useCallback((objectId: string) => send({ type: "pick", objectId }), [send]);
 
-  // Keyboard control.
+  // Keyboard control. Disabled in the Speaker view (the speaker cannot act).
   useEffect(() => {
-    if (phase !== "playing") return;
+    if (phase !== "playing" || viewAs === "speaker") return;
     const onKey = (e: KeyboardEvent) => {
       const map: Record<string, string> = {
         ArrowUp: "up", w: "up", W: "up",
@@ -117,11 +118,11 @@ export default function ListenerPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, move]);
+  }, [phase, move, viewAs]);
 
-  // Timeout countdown.
+  // Timeout countdown. Paused in the Speaker view (no trial clock while composing).
   useEffect(() => {
-    if (phase !== "playing" || !payload) return;
+    if (phase !== "playing" || !payload || viewAs === "speaker") return;
     if (timeLeft <= 0) {
       void post("/api/listener/timeout", {
         sessionId: payload.sessionId,
@@ -136,7 +137,7 @@ export default function ListenerPage() {
     }
     const id = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearTimeout(id);
-  }, [phase, timeLeft, payload]);
+  }, [phase, timeLeft, payload, viewAs]);
 
   // Dev toggle: re-render the current trial under a chosen representation.
   const chooseView = useCallback(
@@ -154,6 +155,24 @@ export default function ListenerPage() {
       } catch {
         /* ignore */
       }
+    },
+    [payload],
+  );
+
+  // Speaker: save the composed utterance to the pool.
+  const saveUtterance = useCallback(
+    async (text: string, composeMs: number) => {
+      if (!payload) return;
+      await fetch("/api/listener/utterance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: payload.sessionId,
+          trialIndex: payload.trialIndex,
+          text,
+          composeMs,
+        }),
+      });
     },
     [payload],
   );
@@ -225,6 +244,8 @@ export default function ListenerPage() {
   const endMood: RobotMood =
     payload.outcome == null ? "hopeful" : payload.outcome.correct ? "thanking" : "sad";
 
+  const isSpeaker = viewAs === "speaker" && !!payload.speaker;
+
   return (
     <div className="game">
       <div className="topbar">
@@ -248,11 +269,16 @@ export default function ListenerPage() {
               <button className={viewAs === "expert" ? "on" : ""} onClick={() => chooseView("expert")}>
                 Expert
               </button>
+              <button className={viewAs === "speaker" ? "on" : ""} onClick={() => chooseView("speaker")}>
+                Speaker
+              </button>
             </div>
           )}
-          <div className={`timer ${timeLeft <= 30 ? "low" : ""}`} style={{ fontVariantNumeric: "tabular-nums", fontSize: 15 }}>
-            ⏱ {mm}:{ss}
-          </div>
+          {!isSpeaker && (
+            <div className={`timer ${timeLeft <= 30 ? "low" : ""}`} style={{ fontVariantNumeric: "tabular-nums", fontSize: 15 }}>
+              ⏱ {mm}:{ss}
+            </div>
+          )}
           <div className="progress-dots">
             {Array.from({ length: payload.missionTotal }).map((_, i) => (
               <span
@@ -264,6 +290,9 @@ export default function ListenerPage() {
         </div>
       </div>
 
+      {isSpeaker ? (
+        <SpeakerPanel data={payload.speaker!} onSave={saveUtterance} />
+      ) : (
       <div className="stack" style={{ gap: 16 }}>
         <div className="utterance">
           <RobotAvatar mood="hopeful" size={44} />
@@ -315,13 +344,16 @@ export default function ListenerPage() {
               <div className="row">
                 <span className="token" style={{ position: "static", width: 18, height: 18, transition: "none" }} />
                 <span className="name">
-                  {world.rooms[world.room] ? `in the ${world.rooms[world.room]}` : "somewhere in the building"}
+                  {world.room && world.rooms[world.room]
+                    ? `in the ${world.rooms[world.room]}`
+                    : "somewhere in the building"}
                 </span>
               </div>
             </div>
           </div>
         </div>
       </div>
+      )}
 
       {phase === "trialEnd" && (
         <div className="overlay">

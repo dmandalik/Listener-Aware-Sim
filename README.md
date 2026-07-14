@@ -104,9 +104,12 @@ scripts/
       mission progress, trial-end reactions). Bigger varied **facility** map (large +
       medium rooms, 16 objects). **Fog of war visual** — rooms haze until entered,
       reveal on entry, re-fog on exit. **Novice** = no room labels + no parts key;
-      **Expert** = all labels + parts key (symbol→name). Dev-only Novice/Expert
-      **toggle** at `/listener?dev=1` (server-gated OFF in production). Run
-      `npm run dev` → open `/listener`.
+      **Expert** = all labels + parts key (symbol→name). Dev-only
+      **Speaker/Novice/Expert toggle** at `/listener?dev=1` (server-gated OFF in
+      production). The **Speaker** view shows the full map + highlighted target +
+      parts key + a brief, with a compose box that **saves utterances to the
+      `utterances` pool** (`/api/listener/utterance`) — the seed of the M4 speaker
+      flow. Run `npm run dev` → open `/listener?dev=1`.
 - [ ] M4 — `/speaker` flow + utterance pool (enables `replay`)
 - [ ] M5 — `repair` and `teleop` task plugins
 - [ ] M6 — Prolific integration (params, consent, mobile block, redirects)
