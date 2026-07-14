@@ -1,0 +1,9 @@
+{
+  "id": "listener_replay",
+  "role": "listener",
+  "showTrialFeedback": true,
+  "trials": [
+    { "condition": "retrieval_facility_novice_replay", "seed": 5001 },
+    { "condition": "retrieval_facility_expert_replay", "seed": 5001 }
+  ]
+}

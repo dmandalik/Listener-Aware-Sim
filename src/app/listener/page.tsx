@@ -57,21 +57,26 @@ export default function ListenerPage() {
     setPayload(p);
   }, []);
 
-  // Start the session on mount.
+  // Start (or resume) the session on mount.
   useEffect(() => {
-    // Capture Prolific params if present (hard-enforced in M6).
     const qs = new URLSearchParams(window.location.search);
-    const prolific = {
-      pid: qs.get("PROLIFIC_PID") ?? undefined,
-      studyId: qs.get("STUDY_ID") ?? undefined,
-      sessionId: qs.get("SESSION_ID") ?? undefined,
-    };
-    post("/api/listener/start", { studyName: "listener_pilot", prolific })
-      .then(beginTrial)
-      .catch((e) => {
-        setError(e.message);
-        setPhase("error");
-      });
+    const sid = qs.get("sid");
+    // Routed from /play with an assigned session → resume it (keeps the locked
+    // novice/expert assignment). Direct /listener access → start a dev session.
+    const req = sid
+      ? post("/api/listener/resume", { sessionId: sid })
+      : post("/api/listener/start", {
+          studyName: "listener_pilot",
+          prolific: {
+            pid: qs.get("PROLIFIC_PID") ?? undefined,
+            studyId: qs.get("STUDY_ID") ?? undefined,
+            sessionId: qs.get("SESSION_ID") ?? undefined,
+          },
+        });
+    req.then(beginTrial).catch((e) => {
+      setError(e.message);
+      setPhase("error");
+    });
   }, [beginTrial]);
 
   const send = useCallback(
@@ -291,7 +296,7 @@ export default function ListenerPage() {
       </div>
 
       {isSpeaker ? (
-        <SpeakerPanel data={payload.speaker!} onSave={saveUtterance} />
+        <SpeakerPanel key={payload.trialIndex} data={payload.speaker!} onSave={saveUtterance} />
       ) : (
       <div className="stack" style={{ gap: 16 }}>
         <div className="utterance">

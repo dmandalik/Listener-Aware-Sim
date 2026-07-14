@@ -45,6 +45,7 @@ npm run verify:skeleton           # end-to-end: config loads + a session persist
 | `npm run db:generate` | generate SQL migrations from `src/lib/db/schema.ts` |
 | `npm run db:migrate` | apply migrations to the configured DB |
 | `npm run verify:skeleton` | Milestone 1 acceptance — condition loads, events round-trip the DB |
+| `npm run verify:replay` | Milestone 4 acceptance — speaker writes → pool → replay serves novice+expert |
 | `npm run headless -- --bot oracle` | run a `retrieval` trial headlessly with a scripted bot (`oracle`/`random`/`move-only`); add `--viewpoint rotated`, `--budget N`, `--persist` |
 | `npm run test` | unit tests (vitest) |
 | `npm run typecheck` | `tsc --noEmit` |
@@ -110,11 +111,39 @@ scripts/
       parts key + a brief, with a compose box that **saves utterances to the
       `utterances` pool** (`/api/listener/utterance`) — the seed of the M4 speaker
       flow. Run `npm run dev` → open `/listener?dev=1`.
-- [ ] M4 — `/speaker` flow + utterance pool (enables `replay`)
+- [x] **M4 — `/speaker` flow + utterance pool (replay end-to-end).** Standalone
+      `/speaker` study: see the full scene → write ONE utterance → saved to the
+      `utterances` pool. Replay listener studies **draw from the pool** (least-served,
+      §8.3) and serve the *same* utterance to a novice AND an expert listener
+      (within-utterance comparison), logging `utterance_replayed` traced to the author
+      and folding outcomes into per-utterance success (bonus, §12). Configs:
+      `speaker_pilot` (Study 1), `listener_replay` (Study 2). Verify:
+      `npm run verify:replay`.
 - [ ] M5 — `repair` and `teleop` task plugins
 - [ ] M6 — Prolific integration (params, consent, mobile block, redirects)
 - [ ] M7 — `/admin` dashboard + exports (CSV/JSONL, bonus CSV, replay viewer)
 - [ ] M8 — Deploy to free tier + 5-person pilot
+
+## Participant entry & assignment
+
+Participants enter at **`/play`**. On start they are **randomly assigned** (balanced —
+always the least-filled cell, random tie-break) to **speaker**, **novice**, or
+**expert**, and that assignment is **fixed for all 3 missions** and stored on the
+session (`sessions.assignment`). Counts stay equal — after every 3 participants
+it's exactly 1/1/1. `/play` routes to the matching flow (`/speaker` or `/listener`)
+with the started session.
+
+- **Novice** — fog + no parts key; a room's **label appears as you enter it** (only
+  the room you're standing in) and updates as you move.
+- **Expert** — fog + all room labels + the parts key.
+- **Speaker** — full map (no fog), target highlighted, writes one utterance per mission.
+
+The scenario is **fixed and identical for everyone**: `retrieval_facility` uses
+`fixedLayout: true`, so objects stay at authored positions — nothing about the
+environment is randomized per participant. The 3 missions differ only in the target.
+
+Direct `/listener` / `/speaker` (no `?sid=`) still start a dev session; add `?dev=1`
+for the Speaker/Novice/Expert view toggle.
 
 ## ⚠️ Pending sign-off (§16)
 

@@ -21,8 +21,9 @@ export const zCondition = z
   .object({
     taskId: z.enum(["retrieval", "repair", "teleop"]),
     scene: z.string().optional(),
+    target: z.string().optional(),
     keys: z.object({
-      sceneLabels: z.enum(["none", "nearby", "all"]),
+      sceneLabels: z.enum(["none", "current", "nearby", "all"]),
       partsKey: z.boolean(),
       controlKey: z.boolean(),
     }),
@@ -44,19 +45,13 @@ export const zCondition = z
     seed: z.number().int(),
   })
   .superRefine((c, ctx) => {
-    // scripted/replay must carry an utterance; human must not (it's authored live).
-    if (c.speakerMode !== "human" && !c.utteranceSource?.text) {
+    // scripted must carry a fixed utterance. replay draws from the pool at runtime
+    // (optionally pinned via utteranceSource). human is authored live.
+    if (c.speakerMode === "scripted" && !c.utteranceSource?.text) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["utteranceSource", "text"],
-        message: `speakerMode "${c.speakerMode}" requires utteranceSource.text`,
-      });
-    }
-    if (c.speakerMode === "replay" && !c.utteranceSource?.speakerSessionId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["utteranceSource", "speakerSessionId"],
-        message: `speakerMode "replay" requires utteranceSource.speakerSessionId for traceability`,
+        message: `speakerMode "scripted" requires utteranceSource.text`,
       });
     }
   });
@@ -111,6 +106,11 @@ export const zMapLegend = z.object({
   target: z.string(),
   listenerStart: z.tuple([z.number().int(), z.number().int()]),
   controlMap: z.record(z.string(), z.enum(["up", "down", "left", "right"])).optional(),
+  /**
+   * When true, objects stay at their authored positions — no per-seed shuffle.
+   * Use for a fixed scenario that is byte-identical for every participant.
+   */
+  fixedLayout: z.boolean().default(false),
 });
 
 export type MapLegend = z.infer<typeof zMapLegend>;
@@ -165,6 +165,7 @@ export const zStudy = z.object({
         condition: z.string(), // condition file name
         seed: z.number().int(),
         utterance: z.string().optional(), // overrides utteranceSource.text
+        target: z.string().optional(), // per-mission target (object id)
       }),
     )
     .min(1),
@@ -203,7 +204,9 @@ export function loadStudy(name: string): ResolvedStudy {
   const trials: ResolvedTrial[] = study.trials.map((t, i) => {
     const base = loadCondition(t.condition);
     const text = t.utterance ?? base.utteranceSource?.text;
-    if (!text) {
+    // replay draws its utterance from the pool at runtime, and human authors it
+    // live — both optional here. scripted is the only mode that needs config text.
+    if (!text && base.speakerMode === "scripted") {
       throw new Error(
         `Invalid study (${name}): trial ${i} (condition "${t.condition}") has no utterance ` +
           `and the condition file provides none.`,
@@ -212,9 +215,10 @@ export function loadStudy(name: string): ResolvedStudy {
     const condition: Condition = {
       ...base,
       seed: t.seed,
-      utteranceSource: { ...base.utteranceSource, text },
+      target: t.target ?? base.target,
+      utteranceSource: text ? { ...base.utteranceSource, text } : base.utteranceSource,
     };
-    return { condition, utterance: text };
+    return { condition, utterance: text ?? "" };
   });
   return {
     id: study.id,

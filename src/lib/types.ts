@@ -52,11 +52,20 @@ export interface Condition {
 
   /** Which keys the LISTENER has. */
   keys: {
-    /** 'none' = no room labels (novice), 'nearby' = door-adjacent only, 'all' = expert. */
-    sceneLabels: "none" | "nearby" | "all";
+    /**
+     * Room-label visibility:
+     *  'none'    — never (no scene key)
+     *  'current' — only the room you're standing in, revealed as you enter (novice)
+     *  'nearby'  — current + door-adjacent rooms
+     *  'all'     — every room (expert)
+     */
+    sceneLabels: "none" | "current" | "nearby" | "all";
     partsKey: boolean;
     controlKey: boolean;
   };
+
+  /** Optional target override (object id). Defaults to the map's target. */
+  target?: string;
 
   /** "rotated" == inverted / egocentric, interpreted per task (§4–§6). */
   viewpoint: "aligned" | "rotated";

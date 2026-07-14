@@ -201,11 +201,13 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
     const geom = parseGeometry(map);
     const rng = makeRng(seed);
 
-    // Seeded placement: rearrange objects within their room (§16 open item —
-    // defaulting to yes; deterministic from seed). Room membership from the map
-    // is authoritative; positions are drawn from that room's floor cells.
+    // Object placement. fixedLayout → authored positions (identical for everyone,
+    // nothing changes). Otherwise seeded within-room shuffle (deterministic per seed).
     const usedByRoom: Record<string, Set<string>> = {};
     const objects: PlacedObject[] = map.objects.map((o) => {
+      if (map.fixedLayout) {
+        return { id: o.id, symbol: o.symbol, part: o.part, room: o.room, pos: o.pos };
+      }
       const cells = geom.floorCellsByRoom[o.room] ?? [];
       if (cells.length === 0) {
         throw new Error(
@@ -219,12 +221,20 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
       return { id: o.id, symbol: o.symbol, part: o.part, room: o.room, pos: free };
     });
 
+    // Target: condition override (per-mission) falls back to the map's target.
+    const target = cond.target ?? map.target;
+    if (!objects.some((o) => o.id === target)) {
+      throw new Error(
+        `retrieval.init: target "${target}" is not an object in scene "${scene}".`,
+      );
+    }
+
     const world: RetrievalWorld = {
       scene,
       geom,
       rooms: map.rooms,
       objects,
-      target: map.target,
+      target,
     };
 
     const [sc, sr] = map.listenerStart;
@@ -280,7 +290,7 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
     const world = s.world;
 
     // Rooms the listener may see LABELS for (geometry is always visible; labels
-    // are gated by the scene key). 'none' → novice sees no labels at all.
+    // are gated by the scene key).
     const visibleLabels: Record<string, string> = {};
     if (cond.keys.sceneLabels === "all") {
       Object.assign(visibleLabels, world.rooms);
@@ -288,6 +298,9 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
       for (const label of nearbyRooms(world, s.room)) {
         if (world.rooms[label]) visibleLabels[label] = world.rooms[label]!;
       }
+    } else if (cond.keys.sceneLabels === "current") {
+      // Novice: learn only the room you're standing in, revealed as the fog clears.
+      if (world.rooms[s.room]) visibleLabels[s.room] = world.rooms[s.room]!;
     }
     // 'none' leaves visibleLabels empty.
 
@@ -307,10 +320,12 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
         ? { id: "parts", label: "Robot Parts", entries: partsKeyEntries(world) }
         : { id: "parts", label: "Robot Parts" }, // no entries ⇒ client renders nothing
     );
-    // Scene panel: absent entirely when the listener has no room key ('none').
+    // Scene panel (a reference legend of room names): only for listeners who have
+    // a real scene key. Novice modes ('none'/'current') get no panel — a novice
+    // learns room names only by walking in, shown on the board.
     keys.push(
-      cond.keys.sceneLabels === "none"
-        ? { id: "scene", label: "Rooms" } // absent (novice)
+      cond.keys.sceneLabels === "none" || cond.keys.sceneLabels === "current"
+        ? { id: "scene", label: "Rooms" } // absent
         : { id: "scene", label: "Rooms", entries: visibleLabels },
     );
 

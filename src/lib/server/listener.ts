@@ -21,10 +21,13 @@ import { ensureMigrated, getDb } from "@/lib/db/client";
 import { trials, sessions, utterances } from "@/lib/db/schema";
 import {
   closeTrial,
+  countAssignments,
+  drawUtterance,
   endSession,
   insertUtterance,
   markParticipantCompleted,
   openTrial,
+  recordUtteranceOutcome,
   setTrialState,
   startSession,
   upsertParticipant,
@@ -115,11 +118,30 @@ async function ready() {
   loadBuiltinMaps();
 }
 
-async function loadPlan(sessionId: string): Promise<{ plan: SessionPlan; pid: string }> {
+export type Assignment = "speaker" | "novice" | "expert";
+
+async function loadPlan(
+  sessionId: string,
+): Promise<{ plan: SessionPlan; pid: string; assignment: Assignment | null }> {
   const db = await getDb();
   const [row] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
   if (!row) throw new Error(`Unknown session "${sessionId}"`);
-  return { plan: row.plan as SessionPlan, pid: row.prolificPid };
+  return {
+    plan: row.plan as SessionPlan,
+    pid: row.prolificPid,
+    assignment: (row.assignment as Assignment | null) ?? null,
+  };
+}
+
+/** Lock the listener's familiarity to their assignment (ALWAYS applied, not dev). */
+function withAssignment(cond: Condition, assignment: Assignment | null): Condition {
+  if (assignment === "expert") {
+    return { ...cond, keys: { ...cond.keys, sceneLabels: "all", partsKey: true } };
+  }
+  if (assignment === "novice") {
+    return { ...cond, keys: { ...cond.keys, sceneLabels: "current", partsKey: false } };
+  }
+  return cond; // speaker / unassigned → condition's own keys
 }
 
 export type ViewAs = "novice" | "expert" | "speaker";
@@ -148,7 +170,7 @@ const DEV_TOGGLE_ALLOWED = process.env.NODE_ENV !== "production";
 function withViewAs(cond: Condition, viewAs?: ViewAs): Condition {
   if (!viewAs || !DEV_TOGGLE_ALLOWED) return cond;
   if (viewAs === "expert") return { ...cond, keys: { ...cond.keys, sceneLabels: "all", partsKey: true } };
-  if (viewAs === "novice") return { ...cond, keys: { ...cond.keys, sceneLabels: "none", partsKey: false } };
+  if (viewAs === "novice") return { ...cond, keys: { ...cond.keys, sceneLabels: "current", partsKey: false } };
   return cond; // "speaker" doesn't override listener keys
 }
 
@@ -158,7 +180,12 @@ function buildPayload(
   plan: SessionPlan,
   state: any,
   cond: Condition,
-  opts: { rejected?: boolean; viewAs?: ViewAs } = {},
+  opts: {
+    rejected?: boolean;
+    viewAs?: ViewAs;
+    utterance?: string;
+    assignment?: Assignment | null;
+  } = {},
 ): TrialPayload {
   const task = getTask(cond.taskId);
   const terminal = task.isTerminal(state);
@@ -166,6 +193,8 @@ function buildPayload(
     terminal && plan.showTrialFeedback
       ? { correct: task.outcome(state).correct, reason: task.outcome(state).reason }
       : null;
+  // Assignment locks familiarity; the dev viewAs toggle overrides on top (dev only).
+  const viewCond = withViewAs(withAssignment(cond, opts.assignment ?? null), opts.viewAs);
   return {
     sessionId,
     done: false,
@@ -173,10 +202,11 @@ function buildPayload(
     taskId: cond.taskId,
     missionNumber: index + 1,
     missionTotal: plan.trials.length,
-    utterance: plan.trials[index]!.utterance,
+    // The served utterance (pool-drawn for replay), falling back to the plan text.
+    utterance: opts.utterance ?? plan.trials[index]!.utterance,
     timeoutMs: cond.timeoutMs,
-    // View rendered under the (optionally dev-overridden) familiarity.
-    view: task.listenerView(state, withViewAs(cond, opts.viewAs)),
+    // View rendered under the assignment-locked (and optionally dev-overridden) keys.
+    view: task.listenerView(state, viewCond),
     terminal,
     rejected: opts.rejected,
     outcome,
@@ -189,6 +219,7 @@ async function openTrialAt(
   index: number,
   plan: SessionPlan,
   pid: string,
+  assignment: Assignment | null,
 ): Promise<TrialPayload> {
   const rt = plan.trials[index];
   if (!rt) {
@@ -216,21 +247,47 @@ async function openTrialAt(
   const state = task.init(cond.seed, cond);
   const target = (state as any).world?.target ?? null;
 
-  const trialId = await openTrial({
+  // Resolve the utterance served to this listener.
+  //   scripted → the fixed config text
+  //   replay   → pinned text if given, else DRAW from the speaker pool (§8)
+  let utteranceText = rt.utterance;
+  let speakerSessionId: string | null = null;
+  let speakerPid: string | undefined;
+  let utteranceId: number | null = null;
+
+  if (cond.speakerMode === "replay") {
+    if (cond.utteranceSource?.text) {
+      utteranceText = cond.utteranceSource.text;
+      speakerSessionId = cond.utteranceSource.speakerSessionId ?? "pinned";
+    } else {
+      const drawn = await drawUtterance(cond.taskId, cond.seed, cond.scene ?? "");
+      if (!drawn) {
+        // Fail loud (§15): a replay study with an empty pool is a setup error.
+        throw new Error(
+          `Utterance pool empty for (${cond.taskId}, seed ${cond.seed}, scene "${cond.scene ?? ""}"). ` +
+            `Run the speaker study to populate it before serving replay listeners.`,
+        );
+      }
+      utteranceText = drawn.text;
+      speakerSessionId = drawn.authorSessionId;
+      speakerPid = drawn.authorPid ?? undefined;
+      utteranceId = drawn.id;
+    }
+  }
+
+  await openTrial({
     sessionId,
     trialIndex: index,
     taskId: cond.taskId,
     seed: cond.seed,
     condition: cond,
-    utteranceText: rt.utterance,
-    // scripted source: no speaker session yet. Study 2 replay (M4) fills this in.
-    speakerSessionId: cond.speakerMode === "replay" ? cond.utteranceSource?.speakerSessionId ?? null : null,
+    utteranceText,
+    speakerSessionId,
+    utteranceId,
     targetId: target,
     state,
   });
-  void trialId;
 
-  // Trial-scoped events, all tagged with trialIndex.
   await writeEvent({
     ev: "trial_start",
     sid: sessionId,
@@ -238,24 +295,23 @@ async function openTrialAt(
     taskId: cond.taskId,
     seed: cond.seed,
     cond: cond as unknown as Record<string, unknown>,
-    utterance: rt.utterance,
+    utterance: utteranceText,
   });
-  // Identical log format across scripted/replay (§7): utterance_replayed.
+  // Identical log format across scripted/replay (§7): utterance_replayed. Replay
+  // carries the real authoring session (traceability, §8); scripted marks its source.
   await writeEvent({
     ev: "utterance_replayed",
     sid: sessionId,
     trialIndex: index,
-    text: rt.utterance,
-    speakerSessionId:
-      cond.speakerMode === "replay"
-        ? cond.utteranceSource?.speakerSessionId ?? "unknown"
-        : "scripted",
+    text: utteranceText,
+    speakerSessionId: speakerSessionId ?? "scripted",
+    ...(speakerPid ? { speakerPid } : {}),
   });
   for (const e of adapter.onInit(state, sessionId)) {
     await writeEvent({ ...(e as EventInput), trialIndex: index } as EventInput);
   }
 
-  return buildPayload(sessionId, index, plan, state, cond);
+  return buildPayload(sessionId, index, plan, state, cond, { utterance: utteranceText, assignment });
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -264,12 +320,14 @@ export async function startListenerSession(args: {
   studyName: string;
   prolific: ProlificIdentity;
   userAgent?: string;
+  assignment?: Assignment | null; // 'novice' | 'expert' when routed from /play
 }): Promise<TrialPayload> {
   await ready();
   const study = loadStudy(args.studyName);
   if (study.role !== "listener") {
     throw new Error(`Study "${args.studyName}" is not a listener study (role=${study.role}).`);
   }
+  const assignment = args.assignment ?? null;
 
   const sid = randomUUID();
   await upsertParticipant({
@@ -286,7 +344,7 @@ export async function startListenerSession(args: {
     showTrialFeedback: study.showTrialFeedback,
     trials: study.trials,
   };
-  await startSession({ id: sid, prolificPid: args.prolific.pid, role: "listener", plan });
+  await startSession({ id: sid, prolificPid: args.prolific.pid, role: "listener", plan, assignment });
 
   await writeEvent({
     ev: "session_start",
@@ -297,7 +355,7 @@ export async function startListenerSession(args: {
     cond: plan.trials[0]!.condition as unknown as Record<string, unknown>,
   });
 
-  return openTrialAt(sid, 0, plan, args.prolific.pid);
+  return openTrialAt(sid, 0, plan, args.prolific.pid, assignment);
 }
 
 async function loadTrialRow(sessionId: string, index: number) {
@@ -366,7 +424,7 @@ export async function viewListenerTrial(args: {
   viewAs?: ViewAs;
 }): Promise<TrialPayload> {
   await ready();
-  const { plan } = await loadPlan(args.sessionId);
+  const { plan, assignment } = await loadPlan(args.sessionId);
   const rt = plan.trials[args.trialIndex];
   if (!rt) throw new Error(`No trial ${args.trialIndex}`);
   const row = await loadTrialRow(args.sessionId, args.trialIndex);
@@ -374,6 +432,8 @@ export async function viewListenerTrial(args: {
 
   const payload = buildPayload(args.sessionId, args.trialIndex, plan, row.state as any, rt.condition, {
     viewAs: args.viewAs,
+    utterance: row.utteranceText ?? undefined,
+    assignment,
   });
 
   // The Speaker view reveals the full world — dev-gated (off in production, §9.6).
@@ -423,7 +483,7 @@ export async function applyListenerAction(args: {
   viewAs?: ViewAs;
 }): Promise<TrialPayload> {
   await ready();
-  const { plan } = await loadPlan(args.sessionId);
+  const { plan, assignment } = await loadPlan(args.sessionId);
   const rt = plan.trials[args.trialIndex];
   if (!rt) throw new Error(`No trial ${args.trialIndex} in session ${args.sessionId}`);
   const cond = rt.condition;
@@ -434,9 +494,11 @@ export async function applyListenerAction(args: {
   if (!row) throw new Error(`Trial ${args.trialIndex} not open`);
   const state = row.state as any;
 
+  const utterance = row.utteranceText ?? undefined;
+
   // Already terminal (or ended) → return current view, no change.
   if (row.endedAt || task.isTerminal(state)) {
-    return buildPayload(args.sessionId, args.trialIndex, plan, state, cond, { viewAs: args.viewAs });
+    return buildPayload(args.sessionId, args.trialIndex, plan, state, cond, { viewAs: args.viewAs, utterance, assignment });
   }
 
   const action = decodeAction(cond.taskId, args.action);
@@ -447,6 +509,8 @@ export async function applyListenerAction(args: {
     return buildPayload(args.sessionId, args.trialIndex, plan, state, cond, {
       rejected: true,
       viewAs: args.viewAs,
+      utterance,
+      assignment,
     });
   }
 
@@ -475,9 +539,13 @@ export async function applyListenerAction(args: {
       chosenId: o.chosenId,
       reason: o.reason,
     });
+    // Fold this outcome into the replayed utterance's aggregate success (§12 bonus).
+    if (row.utteranceId != null) {
+      await recordUtteranceOutcome(row.utteranceId, o.correct);
+    }
   }
 
-  return buildPayload(args.sessionId, args.trialIndex, plan, next, cond, { viewAs: args.viewAs });
+  return buildPayload(args.sessionId, args.trialIndex, plan, next, cond, { viewAs: args.viewAs, utterance, assignment });
 }
 
 export async function timeoutListenerTrial(args: {
@@ -485,7 +553,7 @@ export async function timeoutListenerTrial(args: {
   trialIndex: number;
 }): Promise<TrialPayload> {
   await ready();
-  const { plan } = await loadPlan(args.sessionId);
+  const { plan, assignment } = await loadPlan(args.sessionId);
   const rt = plan.trials[args.trialIndex];
   if (!rt) throw new Error(`No trial ${args.trialIndex}`);
   const cond = rt.condition;
@@ -515,19 +583,224 @@ export async function timeoutListenerTrial(args: {
       chosenId: null,
       reason: "timeout",
     });
+    if (row.utteranceId != null) await recordUtteranceOutcome(row.utteranceId, false);
     // Reflect terminality in the stored state too.
     await setTrialState(row.id, { ...state, terminal: true, reason: "timeout" });
-    return buildPayload(args.sessionId, args.trialIndex, plan, { ...state, terminal: true, reason: "timeout" }, cond);
+    return buildPayload(args.sessionId, args.trialIndex, plan, { ...state, terminal: true, reason: "timeout" }, cond, {
+      utterance: row.utteranceText ?? undefined,
+      assignment,
+    });
   }
-  return buildPayload(args.sessionId, args.trialIndex, plan, state, cond);
+  return buildPayload(args.sessionId, args.trialIndex, plan, state, cond, {
+    utterance: row.utteranceText ?? undefined,
+    assignment,
+  });
 }
 
 export async function advanceListenerTrial(sessionId: string): Promise<TrialPayload> {
   await ready();
-  const { plan, pid } = await loadPlan(sessionId);
+  const { plan, pid, assignment } = await loadPlan(sessionId);
   // Next index = number of trial rows already opened.
   const db = await getDb();
   const rows = await db.select().from(trials).where(eq(trials.sessionId, sessionId));
   const nextIndex = rows.length;
-  return openTrialAt(sessionId, nextIndex, plan, pid);
+  return openTrialAt(sessionId, nextIndex, plan, pid, assignment);
+}
+
+// ── Speaker study (§8 Study 1: write utterances to the pool) ──────────────────
+
+export interface SpeakerTrialPayload {
+  sessionId: string;
+  done: boolean;
+  trialIndex: number;
+  missionNumber: number;
+  missionTotal: number;
+  speaker: SpeakerData | null;
+}
+
+async function openSpeakerTrialAt(
+  sessionId: string,
+  index: number,
+  plan: SessionPlan,
+  pid: string,
+): Promise<SpeakerTrialPayload> {
+  const rt = plan.trials[index];
+  if (!rt) {
+    await endSession(sessionId, "completed");
+    await markParticipantCompleted(pid);
+    return {
+      sessionId,
+      done: true,
+      trialIndex: index,
+      missionNumber: index,
+      missionTotal: plan.trials.length,
+      speaker: null,
+    };
+  }
+  const cond = rt.condition;
+  const task = getTask(cond.taskId);
+  const state = task.init(cond.seed, cond);
+
+  await openTrial({
+    sessionId,
+    trialIndex: index,
+    taskId: cond.taskId,
+    seed: cond.seed,
+    condition: cond,
+    targetId: (state as any).world?.target ?? null,
+    state,
+  });
+  await writeEvent({
+    ev: "trial_start",
+    sid: sessionId,
+    trialIndex: index,
+    taskId: cond.taskId,
+    seed: cond.seed,
+    cond: cond as unknown as Record<string, unknown>,
+    utterance: "", // authored below by the speaker
+  });
+  await writeEvent({
+    ev: "speaker_briefed",
+    sid: sessionId,
+    trialIndex: index,
+    briefing: cond.speakerBriefing,
+  });
+
+  return {
+    sessionId,
+    done: false,
+    trialIndex: index,
+    missionNumber: index + 1,
+    missionTotal: plan.trials.length,
+    speaker: await buildSpeakerData(sessionId, cond, state),
+  };
+}
+
+export async function startSpeakerSession(args: {
+  studyName: string;
+  prolific: ProlificIdentity;
+  userAgent?: string;
+  assignment?: Assignment | null;
+}): Promise<SpeakerTrialPayload> {
+  await ready();
+  const study = loadStudy(args.studyName);
+  if (study.role !== "speaker") {
+    throw new Error(`Study "${args.studyName}" is not a speaker study (role=${study.role}).`);
+  }
+  const sid = randomUUID();
+  await upsertParticipant({
+    prolificPid: args.prolific.pid,
+    studyId: args.prolific.studyId,
+    sessionId: args.prolific.sessionId,
+    role: "speaker",
+    userAgent: args.userAgent,
+    consentedAt: new Date(),
+  });
+  const plan: SessionPlan = {
+    studyId: study.id,
+    showTrialFeedback: study.showTrialFeedback,
+    trials: study.trials,
+  };
+  await startSession({
+    id: sid,
+    prolificPid: args.prolific.pid,
+    role: "speaker",
+    plan,
+    assignment: args.assignment ?? "speaker",
+  });
+  await writeEvent({
+    ev: "session_start",
+    sid,
+    pid: args.prolific.pid,
+    prolific: { studyId: args.prolific.studyId, sessionId: args.prolific.sessionId },
+    role: "speaker",
+    cond: plan.trials[0]!.condition as unknown as Record<string, unknown>,
+  });
+  return openSpeakerTrialAt(sid, 0, plan, args.prolific.pid);
+}
+
+export async function advanceSpeakerTrial(sessionId: string): Promise<SpeakerTrialPayload> {
+  await ready();
+  const { plan, pid } = await loadPlan(sessionId);
+  const db = await getDb();
+  const rows = await db.select().from(trials).where(eq(trials.sessionId, sessionId));
+  return openSpeakerTrialAt(sessionId, rows.length, plan, pid);
+}
+
+// ── Balanced role assignment (single entry: /play) ────────────────────────────
+
+/**
+ * Balanced randomization: assign to the least-filled cell, breaking ties at
+ * random. Guarantees equal speaker/novice/expert counts once participants arrive
+ * in multiples of three, while staying as random as balance allows.
+ */
+async function pickBalancedAssignment(): Promise<Assignment> {
+  const counts = await countAssignments();
+  const cells: Assignment[] = ["speaker", "novice", "expert"];
+  const min = Math.min(...cells.map((c) => counts[c]));
+  const candidates = cells.filter((c) => counts[c] === min);
+  return candidates[Math.floor(Math.random() * candidates.length)]!;
+}
+
+export interface AssignResult {
+  kind: "speaker" | "listener";
+  assignment: Assignment;
+  sessionId: string;
+}
+
+export async function assignAndStart(args: {
+  prolific: ProlificIdentity;
+  userAgent?: string;
+}): Promise<AssignResult> {
+  await ready();
+  const assignment = await pickBalancedAssignment();
+  if (assignment === "speaker") {
+    const p = await startSpeakerSession({
+      studyName: "main_speaker",
+      prolific: args.prolific,
+      userAgent: args.userAgent,
+      assignment: "speaker",
+    });
+    return { kind: "speaker", assignment, sessionId: p.sessionId };
+  }
+  const p = await startListenerSession({
+    studyName: "main_listener",
+    prolific: args.prolific,
+    userAgent: args.userAgent,
+    assignment,
+  });
+  return { kind: "listener", assignment, sessionId: p.sessionId };
+}
+
+/** Resume a listener session at its active (open) trial — refresh-safe. */
+export async function resumeListenerSession(sessionId: string): Promise<TrialPayload> {
+  await ready();
+  const { plan, assignment } = await loadPlan(sessionId);
+  const db = await getDb();
+  const rows = (await db.select().from(trials).where(eq(trials.sessionId, sessionId))) as any[];
+  const active = rows.find((r) => !r.endedAt);
+  if (!active) return advanceListenerTrial(sessionId); // opens next, or returns done
+  return buildPayload(sessionId, active.trialIndex, plan, active.state, plan.trials[active.trialIndex]!.condition, {
+    utterance: active.utteranceText ?? undefined,
+    assignment,
+  });
+}
+
+/** Resume a speaker session at its latest opened scene. */
+export async function resumeSpeakerSession(sessionId: string): Promise<SpeakerTrialPayload> {
+  await ready();
+  const { plan } = await loadPlan(sessionId);
+  const db = await getDb();
+  const rows = (await db.select().from(trials).where(eq(trials.sessionId, sessionId))) as any[];
+  if (!rows.length) throw new Error(`Speaker session ${sessionId} has no open scene`);
+  const row = rows.reduce((a, b) => (b.trialIndex > a.trialIndex ? b : a));
+  const cond = plan.trials[row.trialIndex]!.condition;
+  return {
+    sessionId,
+    done: false,
+    trialIndex: row.trialIndex,
+    missionNumber: row.trialIndex + 1,
+    missionTotal: plan.trials.length,
+    speaker: await buildSpeakerData(sessionId, cond, row.state),
+  };
 }

@@ -1,5 +1,6 @@
 {
   "scene": "retrieval_facility",
+  "fixedLayout": true,
   "grid": [
     "#########################",
     "#A....#E....#D....#H....#",

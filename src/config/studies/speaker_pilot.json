@@ -1,0 +1,10 @@
+{
+  "id": "speaker_pilot",
+  "role": "speaker",
+  "showTrialFeedback": false,
+  "trials": [
+    { "condition": "retrieval_facility_author", "seed": 5001 },
+    { "condition": "retrieval_facility_author", "seed": 5002 },
+    { "condition": "retrieval_facility_author", "seed": 5003 }
+  ]
+}

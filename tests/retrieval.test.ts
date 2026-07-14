@@ -196,6 +196,44 @@ describe("budget exhaustion terminates", () => {
   });
 });
 
+describe("fixed layout + current-room label (facility)", () => {
+  const facilityCond = (overrides: Partial<Condition> = {}) =>
+    cond({ scene: "retrieval_facility", ...overrides });
+
+  it("fixedLayout keeps object positions identical across seeds (no randomization)", () => {
+    const a = retrievalTask.init(11, facilityCond({ seed: 11 }));
+    const b = retrievalTask.init(99, facilityCond({ seed: 99 }));
+    expect(a.world.objects).toEqual(b.world.objects);
+  });
+
+  it("novice 'current' shows only the room you're in, revealed on entry", () => {
+    const c = facilityCond({
+      keys: { sceneLabels: "current", partsKey: false, controlKey: false },
+      budget: 60,
+    });
+    const s0 = retrievalTask.init(c.seed, c) as RetrievalState;
+    const v0 = retrievalTask.listenerView(s0, c) as any;
+    expect(Object.keys(v0.world.rooms)).toEqual([s0.room]);
+
+    // walk up until we cross into a new room
+    let s = s0;
+    for (let i = 0; i < 15 && s.room === s0.room; i++) {
+      const up = retrievalTask.legalActions(s).find((a) => a.type === "move" && a.dir === "up");
+      if (!up) break;
+      s = retrievalTask.apply(s, up);
+    }
+    expect(s.room).not.toEqual(s0.room);
+    const v1 = retrievalTask.listenerView(s, c) as any;
+    expect(Object.keys(v1.world.rooms)).toEqual([s.room]); // now the NEW room's label
+  });
+
+  it("target override changes the goal", () => {
+    const c = facilityCond({ target: "cam2" });
+    const s = retrievalTask.init(c.seed, c);
+    expect(s.world.target).toBe("cam2");
+  });
+});
+
 describe("viewpoint transform", () => {
   it("rotated inverts the world direction of a move", async () => {
     const c = cond({ viewpoint: "rotated", budget: 60 });

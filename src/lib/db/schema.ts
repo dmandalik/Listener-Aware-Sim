@@ -52,6 +52,10 @@ export const sessions = pgTable(
       .notNull()
       .references(() => participants.prolificPid),
     role: text("role", { enum: ["speaker", "listener"] }).notNull(),
+    // Between-subjects assignment, fixed for the whole session. Balanced across
+    // participants (§ equal cell counts). Null for sessions started outside the
+    // assigned entry (e.g. direct /listener dev access).
+    assignment: text("assignment", { enum: ["speaker", "novice", "expert"] }),
     // Assigned experiment plan for this run: ordered conditions + seeds.
     plan: jsonb("plan").notNull(),
     status: text("status", {
@@ -82,6 +86,7 @@ export const trials = pgTable(
     condition: jsonb("condition").notNull(), // the full Condition snapshot
     utteranceText: text("utterance_text"),
     speakerSessionId: text("speaker_session_id"), // set when the utterance was replayed
+    utteranceId: integer("utterance_id"), // pool row served to this trial (replay)
     // Server-authoritative engine state between actions. A recomputable cache of
     // the event log (§12): the client NEVER sees this — it holds the full world,
     // target, and all objects. Only the fog-filtered listenerView is sent out.

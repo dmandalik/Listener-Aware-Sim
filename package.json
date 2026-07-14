@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "verify:skeleton": "tsx scripts/verify-skeleton.ts",
+    "verify:replay": "tsx scripts/verify-replay.ts",
     "headless": "tsx scripts/run-headless.ts",
     "test": "vitest run",
     "test:watch": "vitest",

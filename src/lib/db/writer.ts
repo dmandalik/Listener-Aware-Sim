@@ -7,7 +7,7 @@
 // malformed event fails loudly at the boundary instead of corrupting the record.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { getDb } from "./client";
 import {
   events,
@@ -17,6 +17,7 @@ import {
   utterances,
   type ParticipantRow,
   type SessionRow,
+  type UtteranceRow,
 } from "./schema";
 import {
   EVENT_SCHEMA_VERSION,
@@ -86,6 +87,7 @@ export interface StartSessionArgs {
   prolificPid: string;
   role: "speaker" | "listener";
   plan: unknown; // ordered conditions + seeds for this run
+  assignment?: "speaker" | "novice" | "expert" | null;
 }
 
 export async function startSession(a: StartSessionArgs): Promise<SessionRow> {
@@ -97,9 +99,24 @@ export async function startSession(a: StartSessionArgs): Promise<SessionRow> {
       prolificPid: a.prolificPid,
       role: a.role,
       plan: a.plan,
+      assignment: a.assignment ?? null,
     })
     .returning();
   return row;
+}
+
+/** Current counts per assignment cell — the basis for balanced assignment. */
+export async function countAssignments(): Promise<Record<"speaker" | "novice" | "expert", number>> {
+  const db = await getDb();
+  const rows = (await db
+    .select({ assignment: sessions.assignment, n: count() })
+    .from(sessions)
+    .groupBy(sessions.assignment)) as Array<{ assignment: string | null; n: number }>;
+  const out = { speaker: 0, novice: 0, expert: 0 };
+  for (const r of rows) {
+    if (r.assignment && r.assignment in out) out[r.assignment as keyof typeof out] = Number(r.n);
+  }
+  return out;
 }
 
 export async function endSession(
@@ -149,6 +166,7 @@ export interface OpenTrialArgs {
   condition: unknown;
   utteranceText?: string | null;
   speakerSessionId?: string | null;
+  utteranceId?: number | null;
   targetId?: string | null;
   state?: unknown; // server-authoritative engine state
 }
@@ -165,6 +183,7 @@ export async function openTrial(a: OpenTrialArgs): Promise<number> {
       condition: a.condition,
       utteranceText: a.utteranceText ?? null,
       speakerSessionId: a.speakerSessionId ?? null,
+      utteranceId: a.utteranceId ?? null,
       targetId: a.targetId ?? null,
       state: a.state ?? null,
     })
@@ -202,6 +221,57 @@ export async function insertUtterance(a: InsertUtteranceArgs): Promise<number> {
     })
     .returning({ id: utterances.id });
   return row.id;
+}
+
+/**
+ * Pool-assignment draw (§8.3): pick the least-served utterance for a
+ * (task, seed, scene) cell so one utterance isn't consumed by a single condition,
+ * then atomically bump its served count. Returns null if the pool is empty.
+ */
+export async function drawUtterance(
+  taskId: "retrieval" | "repair" | "teleop",
+  seed: number,
+  scene: string,
+): Promise<UtteranceRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(utterances)
+    .where(
+      and(
+        eq(utterances.taskId, taskId),
+        eq(utterances.seed, seed),
+        eq(utterances.scene, scene),
+      ),
+    )
+    .orderBy(asc(utterances.timesServed), asc(utterances.id));
+  const pick = rows[0] as UtteranceRow | undefined;
+  if (!pick) return null;
+  await db
+    .update(utterances)
+    .set({ timesServed: pick.timesServed + 1 })
+    .where(eq(utterances.id, pick.id));
+  return { ...pick, timesServed: pick.timesServed + 1 };
+}
+
+/** Fold a listener outcome into an utterance's aggregate success (for the bonus). */
+export async function recordUtteranceOutcome(
+  utteranceId: number,
+  correct: boolean,
+): Promise<void> {
+  const db = await getDb();
+  const [row] = await db.select().from(utterances).where(eq(utterances.id, utteranceId));
+  if (!row) return;
+  const listenerTrials = row.listenerTrials + 1;
+  const listenerSuccesses = row.listenerSuccesses + (correct ? 1 : 0);
+  await db
+    .update(utterances)
+    .set({
+      listenerTrials,
+      listenerSuccesses,
+      successRate: listenerSuccesses / listenerTrials,
+    })
+    .where(eq(utterances.id, utteranceId));
 }
 
 export interface CloseTrialArgs {

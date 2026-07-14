@@ -15,7 +15,7 @@ export default function Home() {
           the room you&rsquo;re standing in. It gets <b>one</b> message to guide you. Listen
           carefully.
         </p>
-        <Link href="/listener" className="btn" style={{ display: "inline-block", textDecoration: "none" }}>
+        <Link href="/play" className="btn" style={{ display: "inline-block", textDecoration: "none" }}>
           Start the mission →
         </Link>
         <p style={{ color: "var(--ink-soft)", fontSize: 12, marginTop: 18 }}>
