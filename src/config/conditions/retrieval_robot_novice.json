@@ -1,5 +1,6 @@
 {
   "taskId": "retrieval",
+  "scene": "retrieval_6room",
   "keys": {
     "sceneLabels": "all",
     "partsKey": false,

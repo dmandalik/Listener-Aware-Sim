@@ -43,6 +43,13 @@ export interface KeyPanel<K extends string = string, V extends string = string> 
 export interface Condition {
   taskId: TaskId;
 
+  /**
+   * Which map/scene template this trial uses. Together with `seed` it fully
+   * determines the world (§7). Optional; each task has a default scene.
+   * Also the utterance-pool key alongside (taskId, seed) (§8).
+   */
+  scene?: string;
+
   /** Which keys the LISTENER has. */
   keys: {
     sceneLabels: "nearby" | "all";

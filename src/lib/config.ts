@@ -20,6 +20,7 @@ const MAPS_DIR = join(CONFIG_ROOT, "maps");
 export const zCondition = z
   .object({
     taskId: z.enum(["retrieval", "repair", "teleop"]),
+    scene: z.string().optional(),
     keys: z.object({
       sceneLabels: z.enum(["nearby", "all"]),
       partsKey: z.boolean(),
