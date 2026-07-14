@@ -76,6 +76,14 @@ export interface TeleopSpeakerBoard {
   landmarks: Array<{ name: string; icon: string; pos: [number, number] }>;
 }
 
+/** The speaker's repair board: every part labelled, the target connection flagged. */
+export interface RepairSpeakerBoard {
+  scene: string;
+  viewBox: [number, number];
+  connect: [string, string];
+  components: Array<{ id: string; name: string; shape: string; color: string; pos: [number, number] }>;
+}
+
 export interface SpeakerData {
   taskId: TaskId;
   description: string;
@@ -84,6 +92,7 @@ export interface SpeakerData {
   // Exactly one of the following is populated, per task.
   retrieval?: { world: SpeakerBoard; partsKey: Record<string, string> };
   teleop?: { world: TeleopSpeakerBoard; controlMap: Record<string, string> };
+  repair?: { world: RepairSpeakerBoard };
 }
 
 export interface TrialPayload {
@@ -107,7 +116,8 @@ export interface TrialPayload {
 type AnyAction =
   | { type: "move"; dir: string }
   | { type: "pick"; objectId: string }
-  | { type: "key"; key: string };
+  | { type: "key"; key: string }
+  | { type: "connect"; from: string; to: string };
 
 function decodeAction(taskId: TaskId, raw: unknown): AnyAction {
   const r = raw as any;
@@ -124,6 +134,11 @@ function decodeAction(taskId: TaskId, raw: unknown): AnyAction {
       return { type: "key", key: r.key.toUpperCase() };
     }
   }
+  if (taskId === "repair") {
+    if (r?.type === "connect" && typeof r.from === "string" && typeof r.to === "string") {
+      return { type: "connect", from: r.from, to: r.to };
+    }
+  }
   throw new Error(`Malformed action for task "${taskId}": ${JSON.stringify(raw)}`);
 }
 
@@ -131,6 +146,7 @@ function sameAction(a: any, b: AnyAction): boolean {
   if (a.type !== b.type) return false;
   if (a.type === "move") return a.dir === (b as any).dir;
   if (a.type === "key") return a.key === (b as any).key;
+  if (a.type === "connect") return a.from === (b as any).from && a.to === (b as any).to;
   return a.objectId === (b as any).objectId;
 }
 
@@ -186,6 +202,15 @@ const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
     prompt:
       "Write ONE message that gets a new driver to the goal. You can spend it on the route, on the " +
       "key mapping, or both — but you only get a single message.",
+  },
+  repair: {
+    description:
+      "This robot has a fault: two parts must be connected. A technician will DRAG one part onto the " +
+      "other — but they may not know what any part is called, and several parts look identical. You " +
+      "can see the whole board with every part labelled, and the two parts to connect are wired together. ",
+    prompt:
+      "Write ONE message telling the technician exactly which two parts to connect. Watch out — several " +
+      "parts look the same, so “the socket” won’t be enough; say which one.",
   },
 };
 
@@ -433,6 +458,26 @@ async function buildSpeakerData(
     savedUtterance: (prior[0] as any)?.text ?? null,
   };
 
+  if (cond.taskId === "repair") {
+    return {
+      ...base,
+      repair: {
+        world: {
+          scene: w.scene,
+          viewBox: w.viewBox,
+          connect: w.connect,
+          components: (w.components as any[]).map((c) => ({
+            id: c.id,
+            name: c.name,
+            shape: c.shape,
+            color: c.color,
+            pos: c.pos,
+          })),
+        },
+      },
+    };
+  }
+
   if (cond.taskId === "teleop") {
     return {
       ...base,
@@ -583,6 +628,7 @@ export async function applyListenerAction(args: {
 
   if (task.isTerminal(next)) {
     const o = task.outcome(next);
+    const durationMs = row.startedAt ? Date.now() - new Date(row.startedAt).getTime() : undefined;
     await writeEvent({
       ev: "trial_end",
       sid: args.sessionId,
@@ -592,6 +638,7 @@ export async function applyListenerAction(args: {
       chosen: o.chosenId,
       target: o.targetId,
       reason: o.reason,
+      ...(durationMs != null ? { durationMs } : {}),
     });
     await closeTrial({
       trialId: row.id,
@@ -627,6 +674,7 @@ export async function timeoutListenerTrial(args: {
   if (!row.endedAt && !task.isTerminal(state)) {
     const cost = state.cost ?? 0;
     const target = state.world?.target ?? "";
+    const durationMs = row.startedAt ? Date.now() - new Date(row.startedAt).getTime() : undefined;
     await writeEvent({
       ev: "trial_end",
       sid: args.sessionId,
@@ -636,6 +684,7 @@ export async function timeoutListenerTrial(args: {
       chosen: null,
       target,
       reason: "timeout",
+      ...(durationMs != null ? { durationMs } : {}),
     });
     await closeTrial({
       trialId: row.id,

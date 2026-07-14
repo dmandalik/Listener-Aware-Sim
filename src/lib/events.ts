@@ -120,6 +120,8 @@ export const zTrialEnd = zEventBase.extend({
   chosen: z.string().nullable(),
   target: z.string(),
   reason: z.string(),
+  /** Time-to-finish: ms from trial open to this end. (Additive to v1.) */
+  durationMs: z.number().int().nonnegative().optional(),
 });
 
 export const zEvent = z.discriminatedUnion("ev", [

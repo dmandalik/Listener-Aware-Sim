@@ -401,6 +401,36 @@ button {
   font-weight: 700;
 }
 
+/* ── Repair ─────────────────────────────────────────────────────────────────*/
+.repair-flash {
+  transform-origin: center;
+  animation: repairFlash 520ms ease-out forwards;
+}
+@keyframes repairFlash {
+  0% { opacity: 1; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+.repair-status {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.repair-status .step {
+  font-weight: 700;
+  color: var(--ink);
+}
+.repair-status .feedback.ok {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.repair-status .feedback.bad {
+  color: var(--alert);
+  font-weight: 700;
+}
+
 /* ── Side panel ─────────────────────────────────────────────────────────────*/
 .side {
   display: grid;

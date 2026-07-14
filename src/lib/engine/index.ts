@@ -4,7 +4,7 @@
 // from disk into the retrieval map registry.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { loadMap, loadTeleopMap } from "@/lib/config";
+import { loadMap, loadTeleopMap, loadRepairDiagram } from "@/lib/config";
 import { registerTask, registerAdapter } from "./registry";
 import {
   retrievalTask,
@@ -12,12 +12,15 @@ import {
   registerRetrievalMap,
 } from "@/lib/tasks/retrieval";
 import { teleopTask, teleopAdapter, registerTeleopMap } from "@/lib/tasks/teleop";
+import { repairTask, repairAdapter, registerRepairDiagram } from "@/lib/tasks/repair";
 
 // Register tasks + their event adapters at import time (pure, no I/O).
 registerTask(retrievalTask);
 registerAdapter("retrieval", retrievalAdapter);
 registerTask(teleopTask);
 registerAdapter("teleop", teleopAdapter);
+registerTask(repairTask);
+registerAdapter("repair", repairAdapter);
 
 let mapsLoaded = false;
 
@@ -28,6 +31,7 @@ export function loadBuiltinMaps(): void {
   registerRetrievalMap(loadMap("retrieval_facility"));
   registerTeleopMap(loadTeleopMap("teleop_corridor"));
   registerTeleopMap(loadTeleopMap("teleop_yard"));
+  registerRepairDiagram(loadRepairDiagram("repair_board"));
   mapsLoaded = true;
 }
 
@@ -47,10 +51,12 @@ export {
 } from "./registry";
 export { retrievalTask, retrievalAdapter } from "@/lib/tasks/retrieval";
 export { teleopTask, teleopAdapter } from "@/lib/tasks/teleop";
+export { repairTask, repairAdapter } from "@/lib/tasks/repair";
 export {
   randomBot,
   moveOnlyBot,
   oracleRetrievalBot,
   oracleTeleopBot,
   keyMashTeleopBot,
+  oracleRepairBot,
 } from "./bots";

@@ -1,0 +1,9 @@
+{
+  "id": "repair_pilot",
+  "role": "listener",
+  "showTrialFeedback": true,
+  "trials": [
+    { "condition": "repair_novice", "seed": 1 },
+    { "condition": "repair_expert", "seed": 1 }
+  ]
+}

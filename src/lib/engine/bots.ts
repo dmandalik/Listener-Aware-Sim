@@ -15,6 +15,7 @@ import { DELTA, resolveDir, type Dir } from "./viewpoint";
 import type { BotPolicy } from "./runner";
 import type { RetrievalAction, RetrievalState } from "@/lib/tasks/retrieval";
 import type { TeleopAction, TeleopState } from "@/lib/tasks/teleop";
+import type { RepairAction, RepairState } from "@/lib/tasks/repair";
 
 export const randomBot: BotPolicy<RetrievalState, RetrievalAction> = ({
   legal,
@@ -119,4 +120,13 @@ export const oracleTeleopBot: BotPolicy<TeleopState, TeleopAction> = ({ state })
 export const keyMashTeleopBot: BotPolicy<TeleopState, TeleopAction> = ({ state, rng }) => ({
   type: "key",
   key: state.world.keypad[intBelow(rng, state.world.keypad.length)]!,
+});
+
+// ── repair ───────────────────────────────────────────────────────────────────
+
+/** Connects the correct pair (success path; uses full state). */
+export const oracleRepairBot: BotPolicy<RepairState, RepairAction> = ({ state }) => ({
+  type: "connect",
+  from: state.world.connect[0],
+  to: state.world.connect[1],
 });

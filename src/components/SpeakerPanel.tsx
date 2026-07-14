@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
 import { TeleopBoard, type TeleopListenerWorld } from "@/components/TeleopBoard";
+import { RepairDiagram } from "@/components/RepairDiagram";
 import { RobotAvatar } from "@/components/RobotAvatar";
 import type { SpeakerData } from "@/lib/server/listener";
 
@@ -51,7 +52,26 @@ export function SpeakerPanel({
       </div>
 
       <div className="play-area">
-        {data.taskId === "teleop" && data.teleop ? (
+        {data.taskId === "repair" && data.repair ? (
+          <>
+            <div className="board-wrap">
+              <RepairDiagram
+                world={{
+                  scene: data.repair.world.scene,
+                  viewBox: data.repair.world.viewBox,
+                  components: data.repair.world.components,
+                  labelled: true,
+                }}
+                connectTarget={data.repair.world.connect}
+              />
+              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="legend-target"><span className="ring" /> = the two parts to connect</span>
+                <span>You see the wire. The technician must connect them from your words alone.</span>
+              </p>
+            </div>
+            <div className="side" />
+          </>
+        ) : data.taskId === "teleop" && data.teleop ? (
           <>
             <div className="board-wrap">
               <TeleopBoard
@@ -111,7 +131,9 @@ export function SpeakerPanel({
           placeholder={
             data.taskId === "teleop"
               ? "e.g. Drive right to the apple, then down two tiles to the goal…"
-              : "e.g. Go up two rooms and left to the far corner; grab the star-shaped part…"
+              : data.taskId === "repair"
+                ? "e.g. Drag the middle socket on the left onto the round gauge…"
+                : "e.g. Go up two rooms and left to the far corner; grab the star-shaped part…"
           }
         />
         <div className="row">

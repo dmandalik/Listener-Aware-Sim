@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TrialPayload, ViewAs } from "@/lib/server/listener";
 import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
 import { TeleopBoard, Keypad, type TeleopListenerWorld } from "@/components/TeleopBoard";
+import { RepairDiagram, type RepairWorldView } from "@/components/RepairDiagram";
 import { RobotAvatar, type RobotMood } from "@/components/RobotAvatar";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 
@@ -106,6 +107,7 @@ export default function ListenerPage() {
   const move = useCallback((dir: string) => send({ type: "move", dir }), [send]);
   const pick = useCallback((objectId: string) => send({ type: "pick", objectId }), [send]);
   const pressKey = useCallback((key: string) => send({ type: "key", key }), [send]);
+  const connectParts = useCallback((from: string, to: string) => send({ type: "connect", from, to }), [send]);
 
   const taskId = payload?.taskId;
   const teleopKeypad: string[] = (payload?.view?.world as any)?.keypad ?? [];
@@ -253,8 +255,10 @@ export default function ListenerPage() {
 
   if (!payload || !payload.view) return null;
   const isTeleop = payload.taskId === "teleop";
+  const isRepair = payload.taskId === "repair";
   const world = payload.view.world as unknown as RetrievalListenerWorld;
   const teleWorld = payload.view.world as unknown as TeleopListenerWorld;
+  const repairWorld = payload.view.world as unknown as RepairWorldView;
   const partsKey = payload.view.keys.find((k) => k.id === "parts");
   const controlKey = payload.view.keys.find((k) => k.id === "control");
   const budgetLeft = payload.view.budgetLeft;
@@ -276,7 +280,11 @@ export default function ListenerPage() {
           <div>
             <div className="eyebrow">Mission {payload.missionNumber} of {payload.missionTotal}</div>
             <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
-              {payload.taskId === "teleop" ? "Drive the robot to the goal" : "Retrieve what the robot needs"}
+              {payload.taskId === "teleop"
+                ? "Drive the robot to the goal"
+                : payload.taskId === "repair"
+                  ? "Fix the robot — connect the right parts"
+                  : "Retrieve what the robot needs"}
             </div>
           </div>
         </div>
@@ -325,7 +333,35 @@ export default function ListenerPage() {
 
         <div className="play-area">
           <div className="board-wrap">
-            {isTeleop ? (
+            {isRepair ? (
+              <>
+                {(() => {
+                  const rw = payload.view!.world as any;
+                  const la = rw.lastAttempt as { from: string; to: string; correct: boolean } | null;
+                  return (
+                    <>
+                      <div className="repair-status">
+                        <span className="step">Tries left: {rw.triesLeft}</span>
+                        {la && (
+                          <span className={`feedback ${la.correct ? "ok" : "bad"}`}>
+                            {la.correct ? "✓ connected!" : "✗ those don't connect — try again"}
+                          </span>
+                        )}
+                      </div>
+                      <RepairDiagram
+                        world={repairWorld}
+                        onConnect={connectParts}
+                        disabled={phase !== "playing"}
+                        flash={la ? { from: la.from, to: la.to, correct: la.correct, key: rw.attemptCount } : null}
+                      />
+                    </>
+                  );
+                })()}
+                <p className="hint">
+                  Read the robot&rsquo;s message, then <b>drag one part onto another</b> to connect them.
+                </p>
+              </>
+            ) : isTeleop ? (
               <>
                 <TeleopBoard world={teleWorld} />
                 <p className="hint">
@@ -350,6 +386,8 @@ export default function ListenerPage() {
             )}
           </div>
 
+          {/* repair is a single click — no budget/keys side panel */}
+          {isRepair ? null : (
           <div className="side">
             <div className="card budget">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -410,6 +448,7 @@ export default function ListenerPage() {
               </>
             )}
           </div>
+          )}
         </div>
       </div>
       )}

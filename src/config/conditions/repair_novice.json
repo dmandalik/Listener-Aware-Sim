@@ -1,0 +1,14 @@
+{
+  "taskId": "repair",
+  "scene": "repair_board",
+  "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": false },
+  "viewpoint": "aligned",
+  "budget": 4,
+  "timeoutMs": 180000,
+  "speakerBriefing": "novice",
+  "speakerMode": "scripted",
+  "utteranceSource": { "text": "Drag the middle socket on the left side up onto the round gauge near the top — connect those two." },
+  "allowFollowups": false,
+  "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
+  "seed": 1
+}

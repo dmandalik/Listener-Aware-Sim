@@ -223,6 +223,82 @@ export function loadTeleopMap(name: string): TeleopMap {
   return parseTeleopMap(raw, name);
 }
 
+// ── Repair diagram (§5) ──────────────────────────────────────────────────────
+// A 2-D robot diagram: components at fixed positions the listener clicks. Two (or
+// more) components deliberately share a `shape` (the visual trap) so a bare visual
+// description isn't uniquely identifying.
+
+// Technical-looking parts (sockets, chips, gauges …) drawn as SVG. They carry
+// MADE-UP names, and several look alike — so the manipulation is name familiarity,
+// and disambiguating a look-alike forces spatial language.
+export const REPAIR_SHAPES = [
+  "socket",
+  "chip",
+  "gauge",
+  "cap",
+  "knob",
+  "coil",
+  "led",
+  "relay",
+] as const;
+
+export const zRepairDiagram = z.object({
+  scene: z.string(),
+  viewBox: z.tuple([z.number(), z.number()]), // [width, height]
+  components: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(), // a made-up name (e.g. "Kessel")
+        shape: z.enum(REPAIR_SHAPES),
+        color: z.string(), // hex accent colour
+        pos: z.tuple([z.number(), z.number()]),
+      }),
+    )
+    .min(2),
+  /**
+   * The correct connection: the listener must DRAG one part onto the other. Which
+   * pair connects is NOT visually obvious — it comes from the speaker's words.
+   */
+  connect: z.tuple([z.string(), z.string()]),
+});
+
+export type RepairDiagram = z.infer<typeof zRepairDiagram>;
+
+export function parseRepairDiagram(raw: unknown, sourceLabel: string): RepairDiagram {
+  const parsed = zRepairDiagram.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid repair diagram (${sourceLabel}):\n` +
+        parsed.error.issues
+          .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join("\n"),
+    );
+  }
+  const d = parsed.data;
+  const ids = new Set(d.components.map((c) => c.id));
+  for (const id of d.connect) {
+    if (!ids.has(id)) {
+      throw new Error(`Invalid repair diagram (${sourceLabel}): connect id "${id}" is not a component`);
+    }
+  }
+  if (d.connect[0] === d.connect[1]) {
+    throw new Error(`Invalid repair diagram (${sourceLabel}): a part cannot connect to itself`);
+  }
+  return d;
+}
+
+export function loadRepairDiagram(name: string): RepairDiagram {
+  const file = join(MAPS_DIR, name.endsWith(".json") ? name : `${name}.json`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    throw new Error(`Cannot read repair diagram "${file}": ${(err as Error).message}`);
+  }
+  return parseRepairDiagram(raw, name);
+}
+
 // ── Study plan (§9.1, §8) ────────────────────────────────────────────────────
 // A study is an ordered list of trials. Each trial names a condition file + seed,
 // optionally overriding the utterance. Non-engineers author these as data.
