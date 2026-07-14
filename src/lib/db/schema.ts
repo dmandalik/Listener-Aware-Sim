@@ -82,6 +82,10 @@ export const trials = pgTable(
     condition: jsonb("condition").notNull(), // the full Condition snapshot
     utteranceText: text("utterance_text"),
     speakerSessionId: text("speaker_session_id"), // set when the utterance was replayed
+    // Server-authoritative engine state between actions. A recomputable cache of
+    // the event log (§12): the client NEVER sees this — it holds the full world,
+    // target, and all objects. Only the fog-filtered listenerView is sent out.
+    state: jsonb("state"),
     // Outcome (null until the trial ends).
     correct: boolean("correct"),
     cost: integer("cost"),
@@ -109,6 +113,8 @@ export const events = pgTable(
     t: bigint("t", { mode: "number" }).notNull(),
     sessionId: text("session_id").notNull(),
     ev: text("ev").notNull(),
+    // Denormalized from the payload for per-trial querying (replay viewer, §12).
+    trialIndex: integer("trial_index"),
     // The full validated event object, verbatim. This is the record.
     payload: jsonb("payload").notNull(),
     insertedAt: timestamp("inserted_at", { withTimezone: true })

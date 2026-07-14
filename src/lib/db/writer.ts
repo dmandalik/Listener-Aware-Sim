@@ -132,6 +132,7 @@ export async function writeEvent(input: EventInput): Promise<Event> {
     t: parsed.t,
     sessionId: parsed.sid,
     ev: parsed.ev,
+    trialIndex: parsed.trialIndex ?? null,
     payload: parsed,
   });
   return parsed;
@@ -148,6 +149,7 @@ export interface OpenTrialArgs {
   utteranceText?: string | null;
   speakerSessionId?: string | null;
   targetId?: string | null;
+  state?: unknown; // server-authoritative engine state
 }
 
 export async function openTrial(a: OpenTrialArgs): Promise<number> {
@@ -163,9 +165,15 @@ export async function openTrial(a: OpenTrialArgs): Promise<number> {
       utteranceText: a.utteranceText ?? null,
       speakerSessionId: a.speakerSessionId ?? null,
       targetId: a.targetId ?? null,
+      state: a.state ?? null,
     })
     .returning({ id: trials.id });
   return row.id;
+}
+
+export async function setTrialState(trialId: number, state: unknown): Promise<void> {
+  const db = await getDb();
+  await db.update(trials).set({ state }).where(eq(trials.id, trialId));
 }
 
 export interface CloseTrialArgs {

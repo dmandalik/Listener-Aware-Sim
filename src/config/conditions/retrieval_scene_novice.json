@@ -1,0 +1,14 @@
+{
+  "taskId": "retrieval",
+  "scene": "retrieval_6room",
+  "keys": { "sceneLabels": "nearby", "partsKey": true, "controlKey": false },
+  "viewpoint": "aligned",
+  "budget": 20,
+  "timeoutMs": 180000,
+  "speakerBriefing": "novice",
+  "speakerMode": "scripted",
+  "utteranceSource": { "text": "Go up and to the left — the charger is in the supply room in the far corner." },
+  "allowFollowups": false,
+  "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
+  "seed": 3001
+}

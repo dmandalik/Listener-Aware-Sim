@@ -55,6 +55,28 @@ export async function getDb(): Promise<Db> {
   return handle.db;
 }
 
+// Apply migrations once per warm instance. Drizzle's migrators are idempotent
+// (they track applied migrations), so this is safe to await on every request; it
+// makes local dev seamless (no manual migrate step) and prod safe on deploy.
+let migrated: Promise<void> | null = null;
+export function ensureMigrated(): Promise<void> {
+  if (!migrated) {
+    migrated = (async () => {
+      const { join } = await import("node:path");
+      const folder = join(process.cwd(), "drizzle");
+      const h = await getHandle();
+      if (h.driver === "neon") {
+        const { migrate } = await import("drizzle-orm/neon-http/migrator");
+        await migrate(h.db as any, { migrationsFolder: folder });
+      } else {
+        const { migrate } = await import("drizzle-orm/pglite/migrator");
+        await migrate(h.db as any, { migrationsFolder: folder });
+      }
+    })();
+  }
+  return migrated;
+}
+
 /** Full handle — needed by the migration runner (raw PGlite access). */
 export async function getHandle(): Promise<Handle> {
   if (!handle) handle = await create();

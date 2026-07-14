@@ -52,7 +52,8 @@ export interface Condition {
 
   /** Which keys the LISTENER has. */
   keys: {
-    sceneLabels: "nearby" | "all";
+    /** 'none' = no room labels (novice), 'nearby' = door-adjacent only, 'all' = expert. */
+    sceneLabels: "none" | "nearby" | "all";
     partsKey: boolean;
     controlKey: boolean;
   };

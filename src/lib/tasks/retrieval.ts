@@ -280,15 +280,16 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
     const world = s.world;
 
     // Rooms the listener may see LABELS for (geometry is always visible; labels
-    // are gated by the scene key).
+    // are gated by the scene key). 'none' → novice sees no labels at all.
     const visibleLabels: Record<string, string> = {};
     if (cond.keys.sceneLabels === "all") {
       Object.assign(visibleLabels, world.rooms);
-    } else {
+    } else if (cond.keys.sceneLabels === "nearby") {
       for (const label of nearbyRooms(world, s.room)) {
         if (world.rooms[label]) visibleLabels[label] = world.rooms[label]!;
       }
     }
+    // 'none' leaves visibleLabels empty.
 
     // FOG OF WAR: only the current room's objects, and only their SYMBOL + pos.
     // The part NAME is never attached here — it is knowable only via the parts
@@ -306,10 +307,11 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
         ? { id: "parts", label: "Robot Parts", entries: partsKeyEntries(world) }
         : { id: "parts", label: "Robot Parts" }, // no entries ⇒ client renders nothing
     );
+    // Scene panel: absent entirely when the listener has no room key ('none').
     keys.push(
-      cond.keys.sceneLabels === "all"
-        ? { id: "scene", label: "Rooms", entries: visibleLabels }
-        : { id: "scene", label: "Rooms", entries: visibleLabels }, // nearby subset
+      cond.keys.sceneLabels === "none"
+        ? { id: "scene", label: "Rooms" } // absent (novice)
+        : { id: "scene", label: "Rooms", entries: visibleLabels },
     );
 
     const listenerWorld = {

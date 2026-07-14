@@ -1,0 +1,46 @@
+{
+  "scene": "retrieval_facility",
+  "grid": [
+    "#########################",
+    "#A....#E....#D....#H....#",
+    "#.....#.....#.....#.....#",
+    "#.....+.....+.....+.....#",
+    "#.....#.....#.....#.....#",
+    "#.....#.....#.....#.....#",
+    "#.....###+###.....###+###",
+    "#.....#Z....#.....#R....#",
+    "#.....#.....#.....#.....#",
+    "#.....+.....+.....+.....#",
+    "#.....#.....#.....#.....#",
+    "#.....#.....#.....#.....#",
+    "#########################"
+  ],
+  "rooms": {
+    "A": "storage bay",
+    "E": "hallway",
+    "D": "laboratory",
+    "H": "loading dock",
+    "Z": "server room",
+    "R": "repair bay"
+  },
+  "objects": [
+    { "id": "c1", "symbol": "★", "part": "charger", "room": "A", "pos": [2, 2] },
+    { "id": "l1", "symbol": "○", "part": "lidar", "room": "A", "pos": [3, 9] },
+    { "id": "w1", "symbol": "●", "part": "wire", "room": "A", "pos": [4, 4] },
+    { "id": "cam1", "symbol": "Δ", "part": "camera", "room": "A", "pos": [2, 10] },
+    { "id": "w2", "symbol": "●", "part": "wire", "room": "E", "pos": [8, 2] },
+    { "id": "o1", "symbol": "○", "part": "lidar", "room": "E", "pos": [10, 4] },
+    { "id": "ctrl1", "symbol": "⬤", "part": "control", "room": "D", "pos": [14, 2] },
+    { "id": "w3", "symbol": "●", "part": "wire", "room": "D", "pos": [15, 9] },
+    { "id": "o2", "symbol": "○", "part": "lidar", "room": "D", "pos": [16, 4] },
+    { "id": "cam2", "symbol": "Δ", "part": "camera", "room": "H", "pos": [20, 2] },
+    { "id": "ctrl2", "symbol": "⬤", "part": "control", "room": "H", "pos": [22, 4] },
+    { "id": "o3", "symbol": "○", "part": "lidar", "room": "Z", "pos": [8, 8] },
+    { "id": "w4", "symbol": "●", "part": "wire", "room": "Z", "pos": [10, 10] },
+    { "id": "cam3", "symbol": "Δ", "part": "camera", "room": "R", "pos": [20, 8] },
+    { "id": "ctrl3", "symbol": "⬤", "part": "control", "room": "R", "pos": [22, 10] },
+    { "id": "o4", "symbol": "○", "part": "lidar", "room": "R", "pos": [21, 10] }
+  ],
+  "target": "c1",
+  "listenerStart": [21, 8]
+}

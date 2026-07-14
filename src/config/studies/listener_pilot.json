@@ -1,0 +1,10 @@
+{
+  "id": "listener_pilot",
+  "role": "listener",
+  "showTrialFeedback": true,
+  "trials": [
+    { "condition": "retrieval_facility_expert", "seed": 5001 },
+    { "condition": "retrieval_facility_novice", "seed": 6001 },
+    { "condition": "retrieval_facility_expert", "seed": 5002 }
+  ]
+}

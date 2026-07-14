@@ -1,0 +1,476 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   The Fetch Games — design system (§11)
+   One committed identity: a warm-neutral base, one accent (teal), one alert
+   (coral). Two font families: a geometric sans for UI, a mono for the grid.
+   No default greys. Motion is fast (150–200ms) and never delays input.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --paper: #f4efe6;
+  --paper-2: #ece3d4;
+  --panel: #fbf8f2;
+  --ink: #26231d;
+  --ink-soft: #7a7161;
+  --line: #ddd1bd;
+
+  --accent: #12897a;
+  --accent-ink: #0b5f54;
+  --accent-wash: #dcefe9;
+
+  --alert: #d9583a;
+  --gold: #e0a53f;
+
+  --wall: #2c2822;
+  --floor: #efe7d8;
+  --floor-2: #ded2bd;
+  --door: #bfe3db;
+  --fog: #d3c7b1;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 0 rgba(38, 35, 29, 0.04), 0 6px 20px rgba(38, 35, 29, 0.08);
+  --shadow-lift: 0 2px 0 rgba(38, 35, 29, 0.05), 0 14px 40px rgba(38, 35, 29, 0.16);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #fbf7ef 0%, var(--paper) 55%) fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.center-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.btn {
+  border: 1px solid var(--accent-ink);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 650;
+  padding: 12px 22px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  box-shadow: 0 2px 0 var(--accent-ink);
+}
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 var(--accent-ink);
+}
+.btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 var(--accent-ink);
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+/* ── Game shell ─────────────────────────────────────────────────────────────*/
+.game {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px;
+  gap: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.progress-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dot {
+  width: 22px;
+  height: 6px;
+  border-radius: 4px;
+  background: var(--line);
+  transition: background 160ms ease;
+}
+.dot.done {
+  background: var(--accent);
+}
+.dot.active {
+  background: var(--gold);
+}
+
+.play-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .play-area {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Utterance banner ───────────────────────────────────────────────────────*/
+.utterance {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.utterance .quote {
+  font-size: 18px;
+  line-height: 1.35;
+}
+.utterance .quote b {
+  color: var(--accent-ink);
+}
+
+/* ── Board ──────────────────────────────────────────────────────────────────*/
+.board-wrap {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  overflow-x: auto; /* board scrolls inside its own box, page never does */
+}
+.board {
+  position: relative;
+  display: grid;
+  background: var(--wall);
+  border: 3px solid var(--wall);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+  overflow: hidden;
+  width: max-content;
+  margin: 0 auto;
+}
+.cell {
+  width: var(--cell, 40px);
+  height: var(--cell, 40px);
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.cell.wall {
+  background: var(--wall);
+}
+.cell.floor {
+  background: var(--floor);
+  box-shadow: inset 0 0 0 1px rgba(44, 40, 34, 0.05);
+}
+/* A door is just a walkable opening in the wall. The gap in the black wall is
+   the cue; a faint threshold line hints "passage" without looking like an item. */
+.cell.door {
+  background: var(--floor);
+}
+.cell.door::after {
+  content: "";
+  position: absolute;
+  inset: 32% 12%;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--line) 0 3px,
+    transparent 3px 6px
+  );
+  opacity: 0.7;
+}
+.cell .symbol {
+  font-family: var(--font-mono);
+  font-size: calc(var(--cell, 40px) * 0.5);
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1;
+  transition: transform 140ms ease;
+  user-select: none;
+}
+.cell .symbol:hover {
+  transform: scale(1.18);
+}
+/* Fog of war: rooms the listener isn't standing in are hazed. The layout stays
+   readable; the contents are concealed. Transitions so fog lifts on entry. */
+.cell.fog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--fog, #cdbfa8);
+  opacity: 0.9;
+  z-index: 1;
+  transition: opacity 200ms ease;
+}
+.cell.fog.floor {
+  background: var(--floor-2);
+}
+/* a faint dotted texture over fog to read as "hidden / unknown" */
+.cell.fog::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: radial-gradient(var(--ink-soft) 0.8px, transparent 0.9px);
+  background-size: 8px 8px;
+  opacity: 0.14;
+}
+.cell.reveal {
+  animation: reveal 180ms ease both;
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* the listener token (the robot's stand-in on the board) */
+.token {
+  position: absolute;
+  width: calc(var(--cell, 40px) * 0.62);
+  height: calc(var(--cell, 40px) * 0.62);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #33b3a2, var(--accent));
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(11, 95, 84, 0.5);
+  transition: left 150ms ease, top 150ms ease;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* room labels overlaid on the board */
+.room-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  background: rgba(251, 248, 242, 0.82);
+  padding: 1px 7px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+/* ── Side panel ─────────────────────────────────────────────────────────────*/
+.side {
+  display: grid;
+  gap: 14px;
+}
+.legend {
+  padding: 14px;
+}
+.legend h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.legend .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.legend .row .sym {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  width: 22px;
+  text-align: center;
+}
+.legend .row .name {
+  font-size: 14px;
+}
+
+.budget {
+  padding: 14px;
+}
+.budget .meter {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.budget .fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 160ms ease, background 160ms ease;
+}
+.budget .fill.low {
+  background: var(--alert);
+}
+.budget .nums {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+.timer.low {
+  color: var(--alert);
+  font-weight: 700;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+kbd {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* ── Overlay (trial end) ────────────────────────────────────────────────────*/
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(38, 35, 29, 0.42);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  animation: fade 160ms ease both;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.overlay .panel {
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lift);
+  padding: 30px 34px;
+  width: min(440px, 92vw);
+  text-align: center;
+  animation: pop 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+@keyframes pop {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.overlay h2 {
+  margin: 14px 0 6px;
+}
+.overlay p {
+  color: var(--ink-soft);
+  margin: 0 0 20px;
+}
+
+/* ── Dev-only novice/expert toggle ──────────────────────────────────────────*/
+.dev-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: #2c2822;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.dev-toggle .tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #b6ab97;
+  padding: 0 6px;
+}
+.dev-toggle button {
+  border: none;
+  background: transparent;
+  color: #d9cebc;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 5px 12px;
+  border-radius: 999px;
+  transition: background 140ms ease, color 140ms ease;
+}
+.dev-toggle button.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.banner-alert {
+  background: #fbe9e2;
+  border: 1px solid #f0c3b4;
+  color: #8f3620;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}

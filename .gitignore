@@ -6,6 +6,9 @@ node_modules/
 out/
 next-env.d.ts
 
+# typescript incremental build info
+*.tsbuildinfo
+
 # env
 .env
 .env.local

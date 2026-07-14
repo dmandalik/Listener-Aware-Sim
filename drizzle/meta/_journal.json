@@ -8,6 +8,20 @@
       "when": 1784038080133,
       "tag": "0000_warm_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784039709335,
+      "tag": "0001_same_bug",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784040400649,
+      "tag": "0002_lying_valeria_richards",
+      "breakpoints": true
     }
   ]
 }

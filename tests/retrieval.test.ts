@@ -147,6 +147,23 @@ describe("a novice's view never contains key data", () => {
     expect(JSON.stringify(view.world.rooms)).not.toContain(distantName);
   });
 
+  it("full novice (sceneLabels none): NO room labels and NO parts key leak", () => {
+    const c = cond({ keys: { sceneLabels: "none", partsKey: false, controlKey: false } });
+    const s = retrievalTask.init(c.seed, c);
+    const view = retrievalTask.listenerView(s, c) as any;
+    // scene panel absent, and no room NAMES anywhere in the view
+    const scene = view.keys.find((k: any) => k.id === "scene");
+    expect(scene.entries).toBeUndefined();
+    expect(Object.keys(view.world.rooms)).toHaveLength(0);
+    const blob = JSON.stringify(view);
+    for (const name of Object.values(s.world.rooms)) {
+      expect(blob).not.toContain(name as string);
+    }
+    // parts key absent too
+    const parts = view.keys.find((k: any) => k.id === "parts");
+    expect(parts.entries).toBeUndefined();
+  });
+
   it("expert view DOES contain the keys (sanity)", () => {
     const c = cond({ keys: { sceneLabels: "all", partsKey: true, controlKey: false } });
     const s = retrievalTask.init(c.seed, c);

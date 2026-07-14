@@ -39,6 +39,12 @@ const zEventBase = z.object({
   t: z.number().int().nonnegative(),
   /** session id — the join key for everything after session_start. */
   sid: z.string().min(1),
+  /**
+   * 0-based trial within the session. Present on trial-scoped events so the
+   * firehose segments cleanly per trial in a multi-trial session. Absent on
+   * session-level events (session_start). (Additive to v1.)
+   */
+  trialIndex: z.number().int().nonnegative().optional(),
 });
 
 // ── The events ───────────────────────────────────────────────────────────────
@@ -50,6 +56,15 @@ export const zSessionStart = zEventBase.extend({
   prolific: zProlific,
   role: zRole,
   cond: zConditionSnapshot,
+});
+
+export const zTrialStart = zEventBase.extend({
+  ev: z.literal("trial_start"),
+  taskId: z.enum(["retrieval", "repair", "teleop"]),
+  seed: z.number().int(),
+  cond: zConditionSnapshot,
+  /** The utterance shown to this listener for this trial. */
+  utterance: z.string(),
 });
 
 export const zSpeakerBriefed = zEventBase.extend({
@@ -109,6 +124,7 @@ export const zTrialEnd = zEventBase.extend({
 
 export const zEvent = z.discriminatedUnion("ev", [
   zSessionStart,
+  zTrialStart,
   zSpeakerBriefed,
   zUtteranceSent,
   zUtteranceReplayed,
@@ -124,6 +140,7 @@ export type EventType = Event["ev"];
 /** An event as authored by callers — `v` and `t` are filled in by the writer. */
 export type EventInput =
   | Omit<z.infer<typeof zSessionStart>, "v" | "t">
+  | Omit<z.infer<typeof zTrialStart>, "v" | "t">
   | Omit<z.infer<typeof zSpeakerBriefed>, "v" | "t">
   | Omit<z.infer<typeof zUtteranceSent>, "v" | "t">
   | Omit<z.infer<typeof zUtteranceReplayed>, "v" | "t">

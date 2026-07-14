@@ -5,11 +5,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { loadMap } from "@/lib/config";
-import { registerTask } from "./registry";
-import { retrievalTask, registerRetrievalMap } from "@/lib/tasks/retrieval";
+import { registerTask, registerAdapter } from "./registry";
+import {
+  retrievalTask,
+  retrievalAdapter,
+  registerRetrievalMap,
+} from "@/lib/tasks/retrieval";
 
-// Register tasks at import time (pure, no I/O).
+// Register tasks + their event adapters at import time (pure, no I/O).
 registerTask(retrievalTask);
+registerAdapter("retrieval", retrievalAdapter);
 
 let mapsLoaded = false;
 
@@ -17,6 +22,7 @@ let mapsLoaded = false;
 export function loadBuiltinMaps(): void {
   if (mapsLoaded) return;
   registerRetrievalMap(loadMap("retrieval_6room"));
+  registerRetrievalMap(loadMap("retrieval_facility"));
   mapsLoaded = true;
 }
 
@@ -27,6 +33,12 @@ export type {
   EventSink,
   TaskEventAdapter,
 } from "./runner";
-export { getTask, registerTask, registeredTaskIds } from "./registry";
+export {
+  getTask,
+  getAdapter,
+  registerTask,
+  registerAdapter,
+  registeredTaskIds,
+} from "./registry";
 export { retrievalTask, retrievalAdapter } from "@/lib/tasks/retrieval";
 export { randomBot, moveOnlyBot, oracleRetrievalBot } from "./bots";

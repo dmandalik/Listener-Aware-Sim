@@ -22,7 +22,7 @@ export const zCondition = z
     taskId: z.enum(["retrieval", "repair", "teleop"]),
     scene: z.string().optional(),
     keys: z.object({
-      sceneLabels: z.enum(["nearby", "all"]),
+      sceneLabels: z.enum(["none", "nearby", "all"]),
       partsKey: z.boolean(),
       controlKey: z.boolean(),
     }),
@@ -146,4 +146,80 @@ export function loadMap(name: string): MapLegend {
     throw new Error(`Cannot read map file "${file}": ${(err as Error).message}`);
   }
   return parseMap(raw, name);
+}
+
+// ── Study plan (§9.1, §8) ────────────────────────────────────────────────────
+// A study is an ordered list of trials. Each trial names a condition file + seed,
+// optionally overriding the utterance. Non-engineers author these as data.
+
+const STUDIES_DIR = join(CONFIG_ROOT, "studies");
+
+export const zStudy = z.object({
+  id: z.string(),
+  role: z.enum(["listener", "speaker"]),
+  /** §11: per-trial correctness feedback. Default on; see the §11 caveat. */
+  showTrialFeedback: z.boolean().default(true),
+  trials: z
+    .array(
+      z.object({
+        condition: z.string(), // condition file name
+        seed: z.number().int(),
+        utterance: z.string().optional(), // overrides utteranceSource.text
+      }),
+    )
+    .min(1),
+});
+
+export interface ResolvedTrial {
+  condition: Condition;
+  utterance: string;
+}
+
+export interface ResolvedStudy {
+  id: string;
+  role: "listener" | "speaker";
+  showTrialFeedback: boolean;
+  trials: ResolvedTrial[];
+}
+
+export function loadStudy(name: string): ResolvedStudy {
+  const file = join(STUDIES_DIR, name.endsWith(".json") ? name : `${name}.json`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    throw new Error(`Cannot read study file "${file}": ${(err as Error).message}`);
+  }
+  const parsed = zStudy.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid study (${name}):\n` +
+        parsed.error.issues
+          .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
+          .join("\n"),
+    );
+  }
+  const study = parsed.data;
+  const trials: ResolvedTrial[] = study.trials.map((t, i) => {
+    const base = loadCondition(t.condition);
+    const text = t.utterance ?? base.utteranceSource?.text;
+    if (!text) {
+      throw new Error(
+        `Invalid study (${name}): trial ${i} (condition "${t.condition}") has no utterance ` +
+          `and the condition file provides none.`,
+      );
+    }
+    const condition: Condition = {
+      ...base,
+      seed: t.seed,
+      utteranceSource: { ...base.utteranceSource, text },
+    };
+    return { condition, utterance: text };
+  });
+  return {
+    id: study.id,
+    role: study.role,
+    showTrialFeedback: study.showTrialFeedback,
+    trials,
+  };
 }

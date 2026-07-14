@@ -53,10 +53,18 @@ npm run verify:skeleton           # end-to-end: config loads + a session persist
 
 ```
 src/
+  app/            # Next.js App Router
+    page.tsx      # landing
+    listener/     # /listener — the Study 2 game flow (client)
+    api/listener/ # start | action | timeout | next  (server, node runtime)
+  components/      # RobotAvatar, GameBoard (view-only, fog already applied server-side)
   config/
     conditions/   # experiment cells as JSON (validated) — non-engineers author these
     maps/         # ASCII grid + JSON legend
+    studies/      # ordered trial plans (which conditions, seeds, feedback flag)
   lib/
+    server/
+      listener.ts # session orchestration: start/apply/advance/timeout (§8, §9.6)
     types.ts      # Condition, KeyPanel, Task<State,Action> — shared source of truth (§7, §9)
     events.ts     # versioned event-log schema — the scientific record (§10)
     config.ts     # condition + map loaders, fail-loud validation (§9.1)
@@ -88,7 +96,17 @@ scripts/
       absent-not-disabled keys, seeded RNG. Bots: oracle / random / move-only.
       Tests green (determinism, fog-of-war no leak, novice view no key data, budget
       exhaustion). Run: `npm run headless -- --bot oracle`.
-- [ ] M3 — `/listener` flow + game UI (critical path: Study 2)
+- [x] **M3 — `/listener` flow + full game UI (Study 2, critical path).** Playable
+      end-to-end against scripted utterances. Server-authoritative state
+      (`trials.state`), fog-filtered `listenerView` over `/api/listener/*`, keyboard
+      + click control, timeout countdown, budget meter, per-condition trial plan
+      (`src/config/studies`), and a crafted game UI (warm identity, expressive robot,
+      mission progress, trial-end reactions). Bigger varied **facility** map (large +
+      medium rooms, 16 objects). **Fog of war visual** — rooms haze until entered,
+      reveal on entry, re-fog on exit. **Novice** = no room labels + no parts key;
+      **Expert** = all labels + parts key (symbol→name). Dev-only Novice/Expert
+      **toggle** at `/listener?dev=1` (server-gated OFF in production). Run
+      `npm run dev` → open `/listener`.
 - [ ] M4 — `/speaker` flow + utterance pool (enables `replay`)
 - [ ] M5 — `repair` and `teleop` task plugins
 - [ ] M6 — Prolific integration (params, consent, mobile block, redirects)
