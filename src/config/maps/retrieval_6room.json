@@ -1,0 +1,29 @@
+{
+  "scene": "retrieval_6room",
+  "grid": [
+    "###################",
+    "#..A....#...E..#.D#",
+    "#...c...+...w..+..#",
+    "####+####...#..#..#",
+    "#..B....#.Z.#..R..#",
+    "###################"
+  ],
+  "rooms": {
+    "A": "supply room",
+    "B": "workshop",
+    "D": "dock",
+    "E": "hallway",
+    "Z": "server room",
+    "R": "repair bay"
+  },
+  "objects": [
+    { "id": "c1", "symbol": "★", "part": "charger", "room": "A", "pos": [4, 2] },
+    { "id": "w1", "symbol": "●", "part": "wire", "room": "E", "pos": [12, 2] },
+    { "id": "l1", "symbol": "○", "part": "lidar", "room": "B", "pos": [4, 4] },
+    { "id": "l2", "symbol": "○", "part": "lidar", "room": "R", "pos": [15, 4] },
+    { "id": "cam1", "symbol": "Δ", "part": "camera", "room": "Z", "pos": [10, 4] },
+    { "id": "ctrl1", "symbol": "⬤", "part": "control", "room": "D", "pos": [17, 1] }
+  ],
+  "target": "c1",
+  "listenerStart": [4, 4]
+}

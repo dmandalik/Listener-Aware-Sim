@@ -1,0 +1,19 @@
+{
+  "taskId": "retrieval",
+  "keys": {
+    "sceneLabels": "all",
+    "partsKey": false,
+    "controlKey": false
+  },
+  "viewpoint": "aligned",
+  "budget": 20,
+  "timeoutMs": 300000,
+  "speakerBriefing": "novice",
+  "speakerMode": "scripted",
+  "utteranceSource": {
+    "text": "Grab the charger in the supply room, top-left."
+  },
+  "allowFollowups": false,
+  "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
+  "seed": 1234
+}
