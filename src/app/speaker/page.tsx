@@ -46,7 +46,7 @@ export default function SpeakerPage() {
     const req = sid
       ? post("/api/speaker/resume", { sessionId: sid })
       : post("/api/speaker/start", {
-          studyName: "speaker_pilot",
+          studyName: qs.get("study") ?? "speaker_pilot", // dev: ?study=main_speaker
           prolific: {
             pid: qs.get("PROLIFIC_PID") ?? undefined,
             studyId: qs.get("STUDY_ID") ?? undefined,
