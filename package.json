@@ -14,6 +14,7 @@
     "verify:skeleton": "tsx scripts/verify-skeleton.ts",
     "verify:replay": "tsx scripts/verify-replay.ts",
     "verify:recruitment": "tsx scripts/verify-recruitment.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "headless": "tsx scripts/run-headless.ts",
     "test": "vitest run",
     "test:watch": "vitest",

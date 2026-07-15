@@ -130,7 +130,12 @@ scripts/
       - Both slot into the shared engine, headless runner, task-aware `/listener` UI,
         and the task-aware speaker view. 33 tests; browser-verified.
 - [ ] M6 — Prolific integration (params, consent, mobile block, redirects)
-- [ ] M7 — `/admin` dashboard + exports (CSV/JSONL, bonus CSV, replay viewer)
+- [x] **M7 — `/admin` dashboard + exports.** Secret-gated (`ADMIN_SECRET`): live
+      dashboard (sessions started/completed/abandoned, per-condition-cell counts +
+      success + median time/moves, dropout, pool), one-click **CSV/JSONL export** per
+      table (works while running), **Prolific bonus CSV** (`PROLIFIC_PID, amount`),
+      and a **session replay viewer** (step through any participant event-by-event).
+      Seed demo data with `npm run seed:demo`.
 - [ ] M8 — Deploy to free tier + 5-person pilot
 
 ## Participant entry, recruitment & the utterance pool
