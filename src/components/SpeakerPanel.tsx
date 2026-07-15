@@ -15,6 +15,14 @@ function dirArrow(dir: string): string {
   return dir === "up" ? "↑" : dir === "down" ? "↓" : dir === "left" ? "←" : dir === "right" ? "→" : "";
 }
 
+// Speakers may only type plain text: letters, numbers, whitespace, hyphens, and
+// ordinary punctuation. Emoji and other symbols (★, ♥, 🍎, …) are stripped as they
+// type or paste, so saved utterances stay clean, replayable text.
+const DISALLOWED_INPUT = /[^\p{L}\p{N}\s.,'"?!:;()&\/-]/gu;
+function sanitizeUtterance(s: string): string {
+  return s.replace(DISALLOWED_INPUT, "");
+}
+
 export function SpeakerPanel({
   data,
   onSave,
@@ -127,7 +135,7 @@ export function SpeakerPanel({
         </label>
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setText(sanitizeUtterance(e.target.value))}
           placeholder={
             data.taskId === "teleop"
               ? "Write your message to the driver here…"
