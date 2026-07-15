@@ -14,7 +14,6 @@ export interface PublicStudyConfig {
   consent: {
     title: string;
     sections: Array<{ h?: string; p: string }>;
-    dataSharing: { question: string };
     agreeLabel: string;
     declineLabel: string;
   };

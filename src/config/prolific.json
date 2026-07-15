@@ -16,7 +16,6 @@
       { "h": "If you have questions", "p": "You may contact Dr. Angelique Taylor at amt298@cornell.edu or 646-971-3823." },
       { "h": "Statement of consent", "p": "By clicking “I Agree” and proceeding to the study, you confirm that you have read and understood the information above, that you are 18 years of age or older, and that you voluntarily agree to participate in this study." }
     ],
-    "dataSharing": { "question": "I agree that my de-identified data may be included in a publicly available research dataset." },
     "agreeLabel": "I Agree — Proceed to Study",
     "declineLabel": "I Do Not Agree — Exit"
   }

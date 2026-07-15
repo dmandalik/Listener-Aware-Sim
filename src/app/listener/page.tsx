@@ -415,8 +415,11 @@ export default function ListenerPage() {
       ) : (
       <div className="stack" style={{ gap: 16 }}>
         <div className="utterance">
-          <RobotAvatar mood="hopeful" size={44} />
-          <div className="quote">&ldquo;{payload.utterance}&rdquo;</div>
+          <RobotAvatar mood="hopeful" size={52} />
+          <div className="utterance-body">
+            <div className="utterance-label">The robot’s message — do what it tells you</div>
+            <div className="quote">&ldquo;{payload.utterance}&rdquo;</div>
+          </div>
         </div>
 
         <div className="play-area">

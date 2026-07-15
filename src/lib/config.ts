@@ -230,7 +230,6 @@ export const zProlificConfig = z.object({
   consent: z.object({
     title: z.string(),
     sections: z.array(z.object({ h: z.string().optional(), p: z.string() })).min(1),
-    dataSharing: z.object({ question: z.string() }),
     agreeLabel: z.string(),
     declineLabel: z.string(),
   }),

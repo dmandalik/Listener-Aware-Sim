@@ -29,7 +29,9 @@ export async function POST(req: Request) {
     const result = await assignAndStart({
       prolific,
       name: typeof body.name === "string" ? body.name.trim().slice(0, 120) || null : null,
-      dataSharingConsent: typeof body.dataSharingConsent === "boolean" ? body.dataSharingConsent : null,
+      // Sharing de-identified data is stated in the consent form and implied by
+      // agreeing to proceed — there is no separate opt-in, so record it as given.
+      dataSharingConsent: true,
       userAgent: req.headers.get("user-agent") ?? undefined,
     });
     return NextResponse.json(result);

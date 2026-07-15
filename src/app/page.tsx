@@ -9,7 +9,6 @@ type Cfg = {
   consent: {
     title: string;
     sections: Array<{ h?: string; p: string }>;
-    dataSharing: { question: string };
     agreeLabel: string;
     declineLabel: string;
   };
@@ -22,7 +21,6 @@ export default function Entry() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [step, setStep] = useState<Step>("loading");
   const [name, setName] = useState("");
-  const [dataShare, setDataShare] = useState<"yes" | "no" | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -53,10 +51,8 @@ export default function Entry() {
   }, [params, name]);
 
   const agree = useCallback(() => {
-    if (!dataShare) return;
-    sessionStorage.setItem("dataSharingConsent", dataShare);
     setStep("name");
-  }, [dataShare]);
+  }, []);
 
   const card = (children: React.ReactNode, width = 560) => (
     <main className="center-screen">
@@ -133,29 +129,9 @@ export default function Entry() {
                 <p style={{ margin: 0, color: "var(--ink)", lineHeight: 1.55, fontSize: 14 }}>{s.p}</p>
               </div>
             ))}
-            <div style={{ background: "var(--paper-2)", border: "1px solid var(--line)", borderRadius: 8, padding: "12px 14px", margin: "6px 0 4px" }}>
-              <div style={{ fontSize: 14, marginBottom: 8 }}>{cfg.consent.dataSharing.question}</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {(["yes", "no"] as const).map((v) => (
-                  <button
-                    key={v}
-                    className="btn ghost"
-                    onClick={() => setDataShare(v)}
-                    style={{
-                      borderColor: dataShare === v ? "var(--accent)" : "var(--line)",
-                      background: dataShare === v ? "var(--accent-wash)" : "transparent",
-                      textTransform: "uppercase",
-                      minWidth: 76,
-                    }}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
           <div style={{ display: "flex", gap: 10, padding: "12px 32px 24px", borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
-            <button className="btn" onClick={agree} disabled={!dataShare} title={!dataShare ? "Please choose Yes or No above" : undefined}>
+            <button className="btn" onClick={agree}>
               {cfg.consent.agreeLabel}
             </button>
             <a className="btn ghost" href={cfg.screenoutUrl} style={{ textDecoration: "none" }}>{cfg.consent.declineLabel}</a>
