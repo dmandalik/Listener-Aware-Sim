@@ -1,6 +1,6 @@
 {
   "_comment": "The multi-layout toggle. `layoutsPerTask` is the ON/OFF switch: 1 = classic 3-trial study (one layout per task); set to 2 or 3 to run that many layouts per task (grouped by task, N*3 trials). Speakers and listeners are both assembled from THIS registry, so they always match. Reverting to 1 restores the original behavior with zero other changes. Each task must list at least `layoutsPerTask` layouts. `seed`+`author`/`replay` conditions are the pool key; `layout` is the stable id recorded on trials/utterances.",
-  "layoutsPerTask": 1,
+  "layoutsPerTask": 3,
   "taskOrder": [
     "teleop",
     "repair",
