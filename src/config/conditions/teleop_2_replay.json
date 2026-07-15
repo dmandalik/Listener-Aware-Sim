@@ -1,0 +1,17 @@
+{
+  "taskId": "teleop",
+  "scene": "teleop_yard_2",
+  "keys": {
+    "sceneLabels": "none",
+    "partsKey": false,
+    "controlKey": false
+  },
+  "viewpoint": "aligned",
+  "budget": 110,
+  "timeoutMs": 180000,
+  "speakerBriefing": "novice",
+  "speakerMode": "replay",
+  "allowFollowups": false,
+  "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
+  "seed": 2
+}

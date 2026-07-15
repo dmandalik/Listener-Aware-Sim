@@ -1,0 +1,47 @@
+{
+  "scene": "retrieval_facility_2",
+  "fixedLayout": true,
+  "grid": [
+    "#########################",
+    "#A....#E....#D....#H....#",
+    "#.....+.....#.....#.....#",
+    "#.....#.....#.....+.....#",
+    "#.....#.....#.....#.....#",
+    "#.....#.....+.....#.....#",
+    "#.....###+###.....###+###",
+    "#.....#Z....+.....#R....#",
+    "#.....#.....#.....#.....#",
+    "#.....#.....#.....#.....#",
+    "#.....+.....#.....+.....#",
+    "#.....#.....#.....#.....#",
+    "#########################"
+  ],
+  "rooms": {
+    "A": "cold storage",
+    "E": "corridor",
+    "D": "assembly bay",
+    "H": "dock",
+    "Z": "battery room",
+    "R": "tool crib"
+  },
+  "objects": [
+    { "id": "sen1", "symbol": "○", "part": "sensor", "room": "A", "pos": [2, 2] },
+    { "id": "cab1", "symbol": "●", "part": "cable", "room": "A", "pos": [3, 9] },
+    { "id": "len1", "symbol": "Δ", "part": "lens", "room": "A", "pos": [4, 4] },
+    { "id": "mod1", "symbol": "⬤", "part": "module", "room": "A", "pos": [2, 10] },
+    { "id": "cab2", "symbol": "●", "part": "cable", "room": "E", "pos": [8, 2] },
+    { "id": "sen2", "symbol": "○", "part": "sensor", "room": "E", "pos": [10, 4] },
+    { "id": "mod2", "symbol": "⬤", "part": "module", "room": "D", "pos": [14, 2] },
+    { "id": "cab3", "symbol": "●", "part": "cable", "room": "D", "pos": [15, 9] },
+    { "id": "sen3", "symbol": "○", "part": "sensor", "room": "D", "pos": [16, 4] },
+    { "id": "len2", "symbol": "Δ", "part": "lens", "room": "H", "pos": [20, 2] },
+    { "id": "mod3", "symbol": "⬤", "part": "module", "room": "H", "pos": [22, 4] },
+    { "id": "bat1", "symbol": "★", "part": "battery", "room": "Z", "pos": [8, 8] },
+    { "id": "cab4", "symbol": "●", "part": "cable", "room": "Z", "pos": [10, 10] },
+    { "id": "len3", "symbol": "Δ", "part": "lens", "room": "R", "pos": [20, 8] },
+    { "id": "mod4", "symbol": "⬤", "part": "module", "room": "R", "pos": [22, 10] },
+    { "id": "sen4", "symbol": "○", "part": "sensor", "room": "R", "pos": [21, 10] }
+  ],
+  "target": "bat1",
+  "listenerStart": [21, 8]
+}

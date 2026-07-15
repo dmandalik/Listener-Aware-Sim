@@ -1,0 +1,18 @@
+{
+  "scene": "repair_board_2",
+  "viewBox": [660, 470],
+  "connect": ["w4", "w9"],
+  "components": [
+    { "id": "w1", "name": "Quobble", "shape": "gauge", "color": "#3b82c4", "pos": [110, 80] },
+    { "id": "w2", "name": "Trentle", "shape": "led", "color": "#e0a53f", "pos": [280, 70] },
+    { "id": "w3", "name": "Skarn", "shape": "knob", "color": "#8b5cf6", "pos": [450, 90] },
+    { "id": "w4", "name": "Plome", "shape": "socket", "color": "#3a3630", "pos": [600, 120] },
+    { "id": "w5", "name": "Gribbet", "shape": "chip", "color": "#2f7d4f", "pos": [90, 245] },
+    { "id": "w6", "name": "Yarn", "shape": "gauge", "color": "#3b82c4", "pos": [270, 235] },
+    { "id": "w7", "name": "Delvo", "shape": "cap", "color": "#c98a3a", "pos": [455, 250] },
+    { "id": "w8", "name": "Munt", "shape": "coil", "color": "#d9583a", "pos": [130, 395] },
+    { "id": "w9", "name": "Prisk", "shape": "socket", "color": "#3a3630", "pos": [320, 400] },
+    { "id": "w10", "name": "Wobbin", "shape": "relay", "color": "#6b6355", "pos": [490, 390] },
+    { "id": "w11", "name": "Flane", "shape": "socket", "color": "#3a3630", "pos": [610, 340] }
+  ]
+}

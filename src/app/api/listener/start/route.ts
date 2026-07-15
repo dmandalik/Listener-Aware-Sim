@@ -19,9 +19,15 @@ export async function POST(req: Request) {
       sessionId: p.sessionId ?? `DEV_${randomUUID().slice(0, 8)}`,
     };
 
+    // Dev convenience: allow forcing the novice/expert assignment. In production
+    // participants always arrive via /play, which sets this from the recruitment.
+    const assignment =
+      body.assignment === "novice" || body.assignment === "expert" ? body.assignment : null;
+
     const payload = await startListenerSession({
       studyName,
       prolific,
+      assignment,
       userAgent: req.headers.get("user-agent") ?? undefined,
     });
     return NextResponse.json(payload);

@@ -59,6 +59,9 @@ export const sessions = pgTable(
     // participants (§ equal cell counts). Null for sessions started outside the
     // assigned entry (e.g. direct /listener dev access).
     assignment: text("assignment", { enum: ["speaker", "novice", "expert"] }),
+    // Which layout regime this run belongs to: "single" = 1 layout/task (3 trials),
+    // "multi" = N layouts/task. Lets the two toggle states be analyzed separately.
+    variant: text("variant", { enum: ["single", "multi"] }),
     // Assigned experiment plan for this run: ordered conditions + seeds.
     plan: jsonb("plan").notNull(),
     status: text("status", {
@@ -87,6 +90,7 @@ export const trials = pgTable(
     }).notNull(),
     // Denormalized for easy flat export / grouping (all also derivable elsewhere).
     scene: text("scene"),
+    layout: text("layout"), // stable layout id, e.g. "teleop/2" (multi-layout runs)
     assignment: text("assignment", { enum: ["speaker", "novice", "expert"] }),
     seed: integer("seed").notNull(),
     condition: jsonb("condition").notNull(), // the full Condition snapshot
@@ -150,16 +154,21 @@ export const utterances = pgTable(
     }).notNull(),
     seed: integer("seed").notNull(),
     scene: text("scene").notNull(), // map/scene identifier
+    layout: text("layout"), // stable layout id, e.g. "teleop/2" (multi-layout runs)
     text: text("text").notNull(),
     // Authorship / traceability.
     authorSessionId: text("author_session_id").notNull(),
     authorPid: text("author_pid"),
-    // Pool-assignment bookkeeping (§8.3). Per-condition counts drive the
-    // distinct-per-condition draw (each utterance spread evenly across novices,
-    // and separately across experts).
+    // Pool-assignment bookkeeping (§8.3). `served*` counts every draw (incl. ones a
+    // listener later abandoned); `completed*` counts only trials that TERMINATED and
+    // drives the draw, so an abandoned serve is "reserved" — re-served until a real
+    // listener completes it. Kept per-condition so novices and experts see each
+    // utterance an equal number of times.
     timesServed: integer("times_served").notNull().default(0),
     servedNovice: integer("served_novice").notNull().default(0),
     servedExpert: integer("served_expert").notNull().default(0),
+    completedNovice: integer("completed_novice").notNull().default(0),
+    completedExpert: integer("completed_expert").notNull().default(0),
     // Running aggregate of downstream listener success (for the speaker bonus, §12).
     listenerSuccesses: integer("listener_successes").notNull().default(0),
     listenerTrials: integer("listener_trials").notNull().default(0),

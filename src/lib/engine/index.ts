@@ -29,9 +29,15 @@ export function loadBuiltinMaps(): void {
   if (mapsLoaded) return;
   registerRetrievalMap(loadMap("retrieval_6room"));
   registerRetrievalMap(loadMap("retrieval_facility"));
+  registerRetrievalMap(loadMap("retrieval_facility_2"));
+  registerRetrievalMap(loadMap("retrieval_facility_3"));
   registerTeleopMap(loadTeleopMap("teleop_corridor"));
   registerTeleopMap(loadTeleopMap("teleop_yard"));
+  registerTeleopMap(loadTeleopMap("teleop_yard_2"));
+  registerTeleopMap(loadTeleopMap("teleop_yard_3"));
   registerRepairDiagram(loadRepairDiagram("repair_board"));
+  registerRepairDiagram(loadRepairDiagram("repair_board_2"));
+  registerRepairDiagram(loadRepairDiagram("repair_board_3"));
   mapsLoaded = true;
 }
 

@@ -1,0 +1,18 @@
+{
+  "scene": "repair_board_3",
+  "viewBox": [660, 470],
+  "connect": ["w2", "w7"],
+  "components": [
+    { "id": "w1", "name": "Halvo", "shape": "relay", "color": "#6b6355", "pos": [100, 100] },
+    { "id": "w2", "name": "Crindle", "shape": "gauge", "color": "#3b82c4", "pos": [265, 85] },
+    { "id": "w3", "name": "Blent", "shape": "socket", "color": "#3a3630", "pos": [440, 100] },
+    { "id": "w4", "name": "Ovnar", "shape": "cap", "color": "#c98a3a", "pos": [595, 130] },
+    { "id": "w5", "name": "Dwill", "shape": "knob", "color": "#8b5cf6", "pos": [125, 250] },
+    { "id": "w6", "name": "Skettle", "shape": "gauge", "color": "#3b82c4", "pos": [300, 240] },
+    { "id": "w7", "name": "Ronk", "shape": "gauge", "color": "#3b82c4", "pos": [470, 235] },
+    { "id": "w8", "name": "Feld", "shape": "led", "color": "#e0a53f", "pos": [610, 265] },
+    { "id": "w9", "name": "Gramble", "shape": "coil", "color": "#d9583a", "pos": [150, 395] },
+    { "id": "w10", "name": "Twix", "shape": "chip", "color": "#2f7d4f", "pos": [350, 400] },
+    { "id": "w11", "name": "Vorl", "shape": "socket", "color": "#3a3630", "pos": [520, 390] }
+  ]
+}

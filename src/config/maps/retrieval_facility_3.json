@@ -1,0 +1,47 @@
+{
+  "scene": "retrieval_facility_3",
+  "fixedLayout": true,
+  "grid": [
+    "#########################",
+    "#A....#E....#D....#H....#",
+    "#.....+.....#.....#.....#",
+    "#.....#.....#.....+.....#",
+    "#.....#.....#.....#.....#",
+    "#.....#.....+.....#.....#",
+    "#.....###+###.....###+###",
+    "#.....#Z....+.....#R....#",
+    "#.....#.....#.....#.....#",
+    "#.....#.....#.....#.....#",
+    "#.....+.....#.....+.....#",
+    "#.....#.....#.....#.....#",
+    "#########################"
+  ],
+  "rooms": {
+    "A": "intake",
+    "E": "spine",
+    "D": "drive bay",
+    "H": "gantry",
+    "Z": "core",
+    "R": "annex"
+  },
+  "objects": [
+    { "id": "gyr1", "symbol": "○", "part": "gyro", "room": "A", "pos": [2, 2] },
+    { "id": "fus1", "symbol": "●", "part": "fuse", "room": "A", "pos": [3, 9] },
+    { "id": "val1", "symbol": "Δ", "part": "valve", "room": "A", "pos": [4, 4] },
+    { "id": "rel1", "symbol": "⬤", "part": "relay", "room": "A", "pos": [2, 10] },
+    { "id": "fus2", "symbol": "●", "part": "fuse", "room": "E", "pos": [8, 2] },
+    { "id": "gyr2", "symbol": "○", "part": "gyro", "room": "E", "pos": [10, 4] },
+    { "id": "mot1", "symbol": "★", "part": "motor", "room": "D", "pos": [14, 2] },
+    { "id": "rel2", "symbol": "⬤", "part": "relay", "room": "D", "pos": [15, 9] },
+    { "id": "gyr3", "symbol": "○", "part": "gyro", "room": "D", "pos": [16, 4] },
+    { "id": "val2", "symbol": "Δ", "part": "valve", "room": "H", "pos": [20, 2] },
+    { "id": "rel3", "symbol": "⬤", "part": "relay", "room": "H", "pos": [22, 4] },
+    { "id": "gyr4", "symbol": "○", "part": "gyro", "room": "Z", "pos": [8, 8] },
+    { "id": "fus3", "symbol": "●", "part": "fuse", "room": "Z", "pos": [10, 10] },
+    { "id": "val3", "symbol": "Δ", "part": "valve", "room": "R", "pos": [20, 8] },
+    { "id": "rel4", "symbol": "⬤", "part": "relay", "room": "R", "pos": [22, 10] },
+    { "id": "gyr5", "symbol": "○", "part": "gyro", "room": "R", "pos": [21, 10] }
+  ],
+  "target": "mot1",
+  "listenerStart": [21, 8]
+}

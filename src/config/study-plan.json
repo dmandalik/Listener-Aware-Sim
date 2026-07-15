@@ -1,0 +1,74 @@
+{
+  "_comment": "The multi-layout toggle. `layoutsPerTask` is the ON/OFF switch: 1 = classic 3-trial study (one layout per task); set to 2 or 3 to run that many layouts per task (grouped by task, N*3 trials). Speakers and listeners are both assembled from THIS registry, so they always match. Reverting to 1 restores the original behavior with zero other changes. Each task must list at least `layoutsPerTask` layouts. `seed`+`author`/`replay` conditions are the pool key; `layout` is the stable id recorded on trials/utterances.",
+  "layoutsPerTask": 1,
+  "taskOrder": [
+    "teleop",
+    "repair",
+    "retrieval"
+  ],
+  "layouts": {
+    "teleop": [
+      {
+        "layout": "teleop/1",
+        "author": "teleop_author",
+        "replay": "teleop_replay",
+        "seed": 1
+      },
+      {
+        "layout": "teleop/2",
+        "author": "teleop_2_author",
+        "replay": "teleop_2_replay",
+        "seed": 2
+      },
+      {
+        "layout": "teleop/3",
+        "author": "teleop_3_author",
+        "replay": "teleop_3_replay",
+        "seed": 3
+      }
+    ],
+    "repair": [
+      {
+        "layout": "repair/1",
+        "author": "repair_author",
+        "replay": "repair_replay",
+        "seed": 1
+      },
+      {
+        "layout": "repair/2",
+        "author": "repair_2_author",
+        "replay": "repair_2_replay",
+        "seed": 1
+      },
+      {
+        "layout": "repair/3",
+        "author": "repair_3_author",
+        "replay": "repair_3_replay",
+        "seed": 1
+      }
+    ],
+    "retrieval": [
+      {
+        "layout": "retrieval/1",
+        "author": "retrieval_facility_author",
+        "replay": "retrieval_facility_replay",
+        "seed": 5001,
+        "target": "c1"
+      },
+      {
+        "layout": "retrieval/2",
+        "author": "retrieval_facility_2_author",
+        "replay": "retrieval_facility_2_replay",
+        "seed": 5001,
+        "target": "bat1"
+      },
+      {
+        "layout": "retrieval/3",
+        "author": "retrieval_facility_3_author",
+        "replay": "retrieval_facility_3_replay",
+        "seed": 5001,
+        "target": "mot1"
+      }
+    ]
+  }
+}

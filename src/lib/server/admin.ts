@@ -213,7 +213,7 @@ export async function getSessionDetail(sid: string) {
       ? { name: part.name, dataSharingConsent: part.dataSharingConsent, studyId: part.studyId, sessionId: part.sessionId, userAgent: part.userAgent }
       : null,
     trials: (trs as any[]).map((t) => ({
-      trialIndex: t.trialIndex, taskId: t.taskId, scene: t.scene, seed: t.seed,
+      trialIndex: t.trialIndex, taskId: t.taskId, scene: t.scene, layout: t.layout, seed: t.seed,
       assignment: t.assignment, utteranceText: t.utteranceText, speakerPid: t.speakerPid,
       correct: t.correct, cost: t.cost, durationMs: t.durationMs, targetId: t.targetId,
       chosenId: t.chosenId, reason: t.reason,

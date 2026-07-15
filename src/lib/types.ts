@@ -67,6 +67,11 @@ export interface Condition {
   /** Optional target override (object id). Defaults to the map's target. */
   target?: string;
 
+  /** Stable, human-readable layout id (e.g. "teleop/2"), set by the layout
+   *  registry (study-plan.json). Recorded on trials/utterances for clean
+   *  per-layout analysis. Distinct from (scene, seed), which key the pool. */
+  layout?: string;
+
   /** "rotated" == inverted / egocentric, interpreted per task (§4–§6). */
   viewpoint: "aligned" | "rotated";
 

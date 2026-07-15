@@ -22,6 +22,7 @@ export const zCondition = z
     taskId: z.enum(["retrieval", "repair", "teleop"]),
     scene: z.string().optional(),
     target: z.string().optional(),
+    layout: z.string().optional(),
     keys: z.object({
       sceneLabels: z.enum(["none", "current", "nearby", "all"]),
       partsKey: z.boolean(),
@@ -438,29 +439,109 @@ export function loadStudy(name: string): ResolvedStudy {
     );
   }
   const study = parsed.data;
-  const trials: ResolvedTrial[] = study.trials.map((t, i) => {
-    const base = loadCondition(t.condition);
-    const text = t.utterance ?? base.utteranceSource?.text;
-    // replay draws its utterance from the pool at runtime, and human authors it
-    // live — both optional here. scripted is the only mode that needs config text.
-    if (!text && base.speakerMode === "scripted") {
-      throw new Error(
-        `Invalid study (${name}): trial ${i} (condition "${t.condition}") has no utterance ` +
-          `and the condition file provides none.`,
-      );
-    }
-    const condition: Condition = {
-      ...base,
-      seed: t.seed,
-      target: t.target ?? base.target,
-      utteranceSource: text ? { ...base.utteranceSource, text } : base.utteranceSource,
-    };
-    return { condition, utterance: text ?? "" };
-  });
+  const trials = study.trials.map((t, i) => resolveTrial(t, `study "${name}" trial ${i}`));
   return {
     id: study.id,
     role: study.role,
     showTrialFeedback: study.showTrialFeedback,
+    trials,
+  };
+}
+
+/** Resolve one trial spec (condition name + seed + optional target/utterance) into
+ *  a runnable ResolvedTrial. Shared by static studies (loadStudy) and the
+ *  layout-registry assembly (buildMainStudy). */
+function resolveTrial(
+  t: { condition: string; seed: number; utterance?: string; target?: string; layout?: string },
+  label: string,
+): ResolvedTrial {
+  const base = loadCondition(t.condition);
+  const text = t.utterance ?? base.utteranceSource?.text;
+  // replay draws its utterance from the pool at runtime, and human authors it live
+  // — both optional here. scripted is the only mode that needs config text.
+  if (!text && base.speakerMode === "scripted") {
+    throw new Error(`Invalid ${label} (condition "${t.condition}"): no utterance and none in the condition file.`);
+  }
+  const condition: Condition = {
+    ...base,
+    seed: t.seed,
+    target: t.target ?? base.target,
+    layout: t.layout ?? base.layout,
+    utteranceSource: text ? { ...base.utteranceSource, text } : base.utteranceSource,
+  };
+  return { condition, utterance: text ?? "" };
+}
+
+// ── Multi-layout toggle (study-plan.json) ─────────────────────────────────────
+// A single switch, `layoutsPerTask`, controls how many layouts each task runs.
+//   1 → the classic 3-trial study (one layout per task) — fully reversible.
+//   N → N layouts per task, grouped by task (N*3 trials). Configurable.
+// Speakers and listeners are assembled from the SAME registry so they always match.
+
+const zStudyPlan = z.object({
+  layoutsPerTask: z.number().int().min(1).default(1),
+  taskOrder: z.array(z.enum(["teleop", "repair", "retrieval"])).min(1),
+  layouts: z.record(
+    z.string(),
+    z
+      .array(
+        z.object({
+          layout: z.string(), // stable human-readable id, e.g. "teleop/2"
+          author: z.string(), // speaker (human) condition file
+          replay: z.string(), // listener (replay) condition file
+          seed: z.number().int(),
+          target: z.string().optional(),
+        }),
+      )
+      .min(1),
+  ),
+});
+export type StudyPlan = z.infer<typeof zStudyPlan>;
+
+export function loadStudyPlan(): StudyPlan {
+  const file = join(CONFIG_ROOT, "study-plan.json");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    throw new Error(`Cannot read study-plan.json: ${(err as Error).message}`);
+  }
+  const parsed = zStudyPlan.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid study-plan.json:\n` +
+        parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n"),
+    );
+  }
+  return parsed.data;
+}
+
+/** Assemble the main speaker/listener study from the layout registry: the first
+ *  `layoutsPerTask` layouts of each task, grouped by task in `taskOrder`. With
+ *  layoutsPerTask=1 this reproduces the classic 3-trial study exactly. */
+export function buildMainStudy(role: "speaker" | "listener"): ResolvedStudy {
+  const plan = loadStudyPlan();
+  const trials: ResolvedTrial[] = [];
+  for (const task of plan.taskOrder) {
+    const layouts = plan.layouts[task] ?? [];
+    const n = Math.min(plan.layoutsPerTask, layouts.length);
+    for (let i = 0; i < n; i++) {
+      const L = layouts[i]!;
+      trials.push(
+        resolveTrial(
+          { condition: role === "speaker" ? L.author : L.replay, seed: L.seed, target: L.target, layout: L.layout },
+          `${role} layout ${L.layout}`,
+        ),
+      );
+    }
+  }
+  if (trials.length === 0) {
+    throw new Error(`study-plan.json produced no trials for role "${role}" — check taskOrder/layouts.`);
+  }
+  return {
+    id: role === "speaker" ? "main_speaker" : "main_listener",
+    role,
+    showTrialFeedback: role === "listener",
     trials,
   };
 }

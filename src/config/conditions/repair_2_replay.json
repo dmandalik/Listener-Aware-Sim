@@ -1,0 +1,17 @@
+{
+  "taskId": "repair",
+  "scene": "repair_board_2",
+  "keys": {
+    "sceneLabels": "none",
+    "partsKey": false,
+    "controlKey": false
+  },
+  "viewpoint": "aligned",
+  "budget": 4,
+  "timeoutMs": 180000,
+  "speakerBriefing": "novice",
+  "speakerMode": "replay",
+  "allowFollowups": false,
+  "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
+  "seed": 1
+}

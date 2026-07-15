@@ -16,12 +16,21 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import type { Condition, ListenerView, TaskId } from "@/lib/types";
 import type { EventInput } from "@/lib/events";
-import { loadRecruitment, loadStudy, roleForArrival, type ResolvedTrial } from "@/lib/config";
+import {
+  buildMainStudy,
+  loadRecruitment,
+  loadStudy,
+  loadStudyPlan,
+  roleForArrival,
+  type ResolvedStudy,
+  type ResolvedTrial,
+} from "@/lib/config";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { trials, sessions, utterances } from "@/lib/db/schema";
 import {
   closeTrial,
   countAssignments,
+  countUtterances,
   drawUtterance,
   endSession,
   insertUtterance,
@@ -155,6 +164,15 @@ function sameAction(a: any, b: AnyAction): boolean {
 async function ready() {
   await ensureMigrated();
   loadBuiltinMaps();
+}
+
+/** Resolve a study by name. "main_speaker"/"main_listener" are assembled live from
+ *  the layout registry (study-plan.json) so the toggle applies everywhere they're
+ *  referenced; any other name is a static study file. */
+function studyByName(name: string): ResolvedStudy {
+  if (name === "main_speaker") return buildMainStudy("speaker");
+  if (name === "main_listener") return buildMainStudy("listener");
+  return loadStudy(name);
 }
 
 export type Assignment = "speaker" | "novice" | "expert";
@@ -347,6 +365,7 @@ async function openTrialAt(
     trialIndex: index,
     taskId: cond.taskId,
     scene: cond.scene ?? null,
+    layout: cond.layout ?? null,
     assignment,
     seed: cond.seed,
     condition: cond,
@@ -387,19 +406,39 @@ async function openTrialAt(
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function startListenerSession(args: {
-  studyName: string;
+  studyName?: string;
+  study?: ResolvedStudy; // pre-assembled plan (e.g. from buildMainStudy) — wins over studyName
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null; // 'novice' | 'expert' when routed from /play
+  variant?: "single" | "multi" | null;
 }): Promise<TrialPayload> {
   await ready();
-  const study = loadStudy(args.studyName);
+  const study = args.study ?? studyByName(args.studyName ?? "listener_pilot");
   if (study.role !== "listener") {
-    throw new Error(`Study "${args.studyName}" is not a listener study (role=${study.role}).`);
+    throw new Error(`Study "${study.id}" is not a listener study (role=${study.role}).`);
   }
   const assignment = args.assignment ?? null;
+
+  // A listener may only play a task that already has speaker utterances to replay
+  // (§8: speakers are recruited first). Drop any replay task whose pool is still
+  // empty, so each listener does exactly the tasks that are ready — one trial each,
+  // never the same task repeated.
+  const eligible: ResolvedTrial[] = [];
+  for (const rt of study.trials) {
+    const c = rt.condition;
+    const needsPool = c.speakerMode === "replay" && !c.utteranceSource?.text;
+    if (needsPool && (await countUtterances(c.taskId, c.seed, c.scene ?? "")) === 0) continue;
+    eligible.push(rt);
+  }
+  if (eligible.length === 0) {
+    throw new Error(
+      "No tasks are ready yet: the speaker utterance pool is empty for every task. " +
+        "Recruit speakers to author utterances before serving listeners.",
+    );
+  }
 
   const sid = randomUUID();
   await upsertParticipant({
@@ -416,9 +455,9 @@ export async function startListenerSession(args: {
   const plan: SessionPlan = {
     studyId: study.id,
     showTrialFeedback: study.showTrialFeedback,
-    trials: study.trials,
+    trials: eligible,
   };
-  await startSession({ id: sid, prolificPid: args.prolific.pid, role: "listener", plan, assignment });
+  await startSession({ id: sid, prolificPid: args.prolific.pid, role: "listener", plan, assignment, variant: args.variant ?? null });
 
   await writeEvent({
     ev: "session_start",
@@ -583,6 +622,7 @@ export async function saveSpeakerUtterance(args: {
     taskId: cond.taskId,
     seed: cond.seed,
     scene: cond.scene ?? "",
+    layout: cond.layout ?? null,
     text,
     authorSessionId: args.sessionId,
     authorPid: pid,
@@ -663,9 +703,10 @@ export async function applyListenerAction(args: {
       reason: o.reason,
       durationMs,
     });
-    // Fold this outcome into the replayed utterance's aggregate success (§12 bonus).
+    // Fold this outcome into the replayed utterance's aggregates (§12 bonus, and
+    // the per-condition completed count that balances the pool).
     if (row.utteranceId != null) {
-      await recordUtteranceOutcome(row.utteranceId, o.correct);
+      await recordUtteranceOutcome(row.utteranceId, o.correct, assignment === "speaker" ? null : assignment);
     }
   }
 
@@ -710,7 +751,9 @@ export async function timeoutListenerTrial(args: {
       reason: "timeout",
       durationMs,
     });
-    if (row.utteranceId != null) await recordUtteranceOutcome(row.utteranceId, false);
+    if (row.utteranceId != null) {
+      await recordUtteranceOutcome(row.utteranceId, false, assignment === "speaker" ? null : assignment);
+    }
     // Reflect terminality in the stored state too.
     await setTrialState(row.id, { ...state, terminal: true, reason: "timeout" });
     return buildPayload(args.sessionId, args.trialIndex, plan, { ...state, terminal: true, reason: "timeout" }, cond, {
@@ -773,6 +816,7 @@ async function openSpeakerTrialAt(
     trialIndex: index,
     taskId: cond.taskId,
     scene: cond.scene ?? null,
+    layout: cond.layout ?? null,
     assignment: "speaker",
     seed: cond.seed,
     condition: cond,
@@ -806,17 +850,19 @@ async function openSpeakerTrialAt(
 }
 
 export async function startSpeakerSession(args: {
-  studyName: string;
+  studyName?: string;
+  study?: ResolvedStudy; // pre-assembled plan (e.g. from buildMainStudy) — wins over studyName
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null;
+  variant?: "single" | "multi" | null;
 }): Promise<SpeakerTrialPayload> {
   await ready();
-  const study = loadStudy(args.studyName);
+  const study = args.study ?? studyByName(args.studyName ?? "speaker_pilot");
   if (study.role !== "speaker") {
-    throw new Error(`Study "${args.studyName}" is not a speaker study (role=${study.role}).`);
+    throw new Error(`Study "${study.id}" is not a speaker study (role=${study.role}).`);
   }
   const sid = randomUUID();
   await upsertParticipant({
@@ -840,6 +886,7 @@ export async function startSpeakerSession(args: {
     role: "speaker",
     plan,
     assignment: args.assignment ?? "speaker",
+    variant: args.variant ?? null,
   });
   await writeEvent({
     ev: "session_start",
@@ -887,10 +934,20 @@ export async function assignAndStart(args: {
 }): Promise<AssignResult> {
   await ready();
   const assignment = await pickAssignment();
-  const common = { userAgent: args.userAgent, name: args.name, dataSharingConsent: args.dataSharingConsent };
+  // The main study is assembled from the layout registry (study-plan.json), so the
+  // single `layoutsPerTask` toggle switches everyone between the 3-trial and the
+  // N-layout flow — speakers and listeners always from the same registry. The run's
+  // variant is tagged on the session so the two modes stay separable in the data.
+  const variant: "single" | "multi" = loadStudyPlan().layoutsPerTask > 1 ? "multi" : "single";
+  const common = {
+    userAgent: args.userAgent,
+    name: args.name,
+    dataSharingConsent: args.dataSharingConsent,
+    variant,
+  };
   if (assignment === "speaker") {
     const p = await startSpeakerSession({
-      studyName: "main_speaker",
+      study: buildMainStudy("speaker"),
       prolific: args.prolific,
       assignment: "speaker",
       ...common,
@@ -898,7 +955,7 @@ export async function assignAndStart(args: {
     return { kind: "speaker", assignment, sessionId: p.sessionId };
   }
   const p = await startListenerSession({
-    studyName: "main_listener",
+    study: buildMainStudy("listener"),
     prolific: args.prolific,
     assignment,
     ...common,

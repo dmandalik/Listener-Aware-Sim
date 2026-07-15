@@ -94,6 +94,7 @@ export interface StartSessionArgs {
   role: "speaker" | "listener";
   plan: unknown; // ordered conditions + seeds for this run
   assignment?: "speaker" | "novice" | "expert" | null;
+  variant?: "single" | "multi" | null;
 }
 
 export async function startSession(a: StartSessionArgs): Promise<SessionRow> {
@@ -106,6 +107,7 @@ export async function startSession(a: StartSessionArgs): Promise<SessionRow> {
       role: a.role,
       plan: a.plan,
       assignment: a.assignment ?? null,
+      variant: a.variant ?? null,
     })
     .returning();
   return row;
@@ -169,6 +171,7 @@ export interface OpenTrialArgs {
   trialIndex: number;
   taskId: "retrieval" | "repair" | "teleop";
   scene?: string | null;
+  layout?: string | null;
   assignment?: "speaker" | "novice" | "expert" | null;
   seed: number;
   condition: unknown;
@@ -189,6 +192,7 @@ export async function openTrial(a: OpenTrialArgs): Promise<number> {
       trialIndex: a.trialIndex,
       taskId: a.taskId,
       scene: a.scene ?? null,
+      layout: a.layout ?? null,
       assignment: a.assignment ?? null,
       seed: a.seed,
       condition: a.condition,
@@ -214,6 +218,7 @@ export interface InsertUtteranceArgs {
   taskId: "retrieval" | "repair" | "teleop";
   seed: number;
   scene: string;
+  layout?: string | null;
   text: string;
   authorSessionId: string;
   authorPid?: string | null;
@@ -227,6 +232,7 @@ export async function insertUtterance(a: InsertUtteranceArgs): Promise<number> {
       taskId: a.taskId,
       seed: a.seed,
       scene: a.scene,
+      layout: a.layout ?? null,
       text: a.text,
       authorSessionId: a.authorSessionId,
       authorPid: a.authorPid ?? null,
@@ -258,10 +264,20 @@ export async function drawUtterance(
     )) as UtteranceRow[];
   if (rows.length === 0) return null;
 
+  // Balance on COMPLETED trials, not draws: an utterance served to a listener who
+  // then abandons never gets a completed++, so it stays least-completed and is
+  // re-served ("reserved" per §8.3) until a real listener finishes it. `served`
+  // (draw count) is a secondary tie-break to spread concurrent in-flight draws;
+  // random breaks the rest. This keeps completed novices == completed experts and
+  // each speaker's utterances used equally.
+  const completedOf = (r: UtteranceRow) =>
+    condition === "novice" ? r.completedNovice : r.completedExpert;
   const servedOf = (r: UtteranceRow) => (condition === "novice" ? r.servedNovice : r.servedExpert);
-  const min = Math.min(...rows.map(servedOf));
-  const candidates = rows.filter((r) => servedOf(r) === min);
-  const pick = candidates[Math.floor(Math.random() * candidates.length)]!;
+  const minC = Math.min(...rows.map(completedOf));
+  let pool = rows.filter((r) => completedOf(r) === minC);
+  const minS = Math.min(...pool.map(servedOf));
+  pool = pool.filter((r) => servedOf(r) === minS);
+  const pick = pool[Math.floor(Math.random() * pool.length)]!;
 
   await db
     .update(utterances)
@@ -275,10 +291,31 @@ export async function drawUtterance(
   return pick;
 }
 
-/** Fold a listener outcome into an utterance's aggregate success (for the bonus). */
+/** How many speaker utterances the pool holds for a (task, seed, scene) — a
+ *  non-mutating check used to decide whether a listener may play that task. */
+export async function countUtterances(
+  taskId: "retrieval" | "repair" | "teleop",
+  seed: number,
+  scene: string,
+): Promise<number> {
+  const db = await getDb();
+  const [row] = (await db
+    .select({ n: count() })
+    .from(utterances)
+    .where(
+      and(eq(utterances.taskId, taskId), eq(utterances.seed, seed), eq(utterances.scene, scene)),
+    )) as Array<{ n: number }>;
+  return Number(row?.n ?? 0);
+}
+
+/** Fold a TERMINATED listener trial into an utterance's aggregates. Increments the
+ *  per-condition completed count (the "reserved" balance target) and the success
+ *  aggregate (for the bonus). Only called when a trial actually ends — abandoned
+ *  trials never reach here, so their serve is released for re-use. */
 export async function recordUtteranceOutcome(
   utteranceId: number,
   correct: boolean,
+  condition?: "novice" | "expert" | null,
 ): Promise<void> {
   const db = await getDb();
   const [row] = await db.select().from(utterances).where(eq(utterances.id, utteranceId));
@@ -291,6 +328,11 @@ export async function recordUtteranceOutcome(
       listenerTrials,
       listenerSuccesses,
       successRate: listenerSuccesses / listenerTrials,
+      ...(condition === "novice"
+        ? { completedNovice: row.completedNovice + 1 }
+        : condition === "expert"
+          ? { completedExpert: row.completedExpert + 1 }
+          : {}),
     })
     .where(eq(utterances.id, utteranceId));
 }
