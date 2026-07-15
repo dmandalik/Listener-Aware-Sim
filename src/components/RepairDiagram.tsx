@@ -205,9 +205,38 @@ export function RepairDiagram({
           setPointer(null);
         }}
       >
-        <rect x={6} y={6} width={w - 12} height={h - 12} rx={20} fill="#efe7d8" stroke="#d9cebc" strokeWidth={3} />
-        <text x={w / 2} y={34} textAnchor="middle" fontSize={12} fill="#a99f8c" fontWeight={700} letterSpacing="0.12em">
-          MAINTENANCE BOARD
+        <defs>
+          <pattern id="pcbgrid" width={22} height={22} patternUnits="userSpaceOnUse">
+            <circle cx={1} cy={1} r={1} fill="#3a6a5a" opacity={0.45} />
+          </pattern>
+        </defs>
+
+        {/* board chassis */}
+        <rect x={6} y={6} width={w - 12} height={h - 12} rx={18} fill="#123028" stroke="#0b1f19" strokeWidth={4} />
+        <rect x={14} y={14} width={w - 28} height={h - 28} rx={13} fill="#17372d" stroke="#2b5748" strokeWidth={1.5} />
+        <rect x={14} y={14} width={w - 28} height={h - 28} rx={13} fill="url(#pcbgrid)" />
+
+        {/* copper power/ground rails + vias (ambient — not the answer) */}
+        {[64, h - 40].map((y) => (
+          <g key={y}>
+            <line x1={30} y1={y} x2={w - 30} y2={y} stroke="#b9863f" strokeWidth={3} opacity={0.32} />
+            {Array.from({ length: 9 }, (_, i) => (
+              <circle key={i} cx={40 + i * ((w - 80) / 8)} cy={y} r={2.5} fill="#c9964a" opacity={0.5} />
+            ))}
+          </g>
+        ))}
+
+        {/* corner mounting screws */}
+        {[[26, 26], [w - 26, 26], [26, h - 26], [w - 26, h - 26]].map(([sx, sy], i) => (
+          <g key={i} transform={`translate(${sx}, ${sy})`}>
+            <circle r={9} fill="#0e2620" stroke="#2b5748" strokeWidth={2} />
+            <circle r={5} fill="#2e564a" />
+            <line x1={-4} y1={-4} x2={4} y2={4} stroke="#0e2620" strokeWidth={1.6} />
+          </g>
+        ))}
+
+        <text x={w / 2} y={38} textAnchor="middle" fontSize={12} fill="#8fbdad" fontWeight={800} letterSpacing="0.22em">
+          ◄ MAINTENANCE BUS · REV-3 ►
         </text>
 
         {/* wires (under the parts) */}
@@ -261,12 +290,17 @@ export function RepairDiagram({
                 setPointer(c.pos);
               }}
             >
-              {inTarget && <circle r={36} fill="none" stroke="#e0a53f" strokeWidth={2.5} strokeDasharray="3 5" />}
-              {dragFrom === c.id && <circle r={36} fill="none" stroke="#12897a" strokeWidth={2.5} />}
+              {/* module mounting pad — gives each part a mounted, technical look */}
+              <rect x={-35} y={-33} width={70} height={66} rx={9} fill="#20463a" stroke="#3a6656" strokeWidth={1.5} />
+              {[[-29, -27], [29, -27], [-29, 27], [29, 27]].map(([px, py], i) => (
+                <circle key={i} cx={px} cy={py} r={2} fill="#0e2620" />
+              ))}
+              {inTarget && <rect x={-38} y={-36} width={76} height={72} rx={11} fill="none" stroke="#e0a53f" strokeWidth={2.5} strokeDasharray="4 5" />}
+              {dragFrom === c.id && <rect x={-38} y={-36} width={76} height={72} rx={11} fill="none" stroke="#38c9b5" strokeWidth={2.5} />}
               <Shape shape={c.shape} color={c.color} />
               <circle r={34} fill="transparent" />
               {world.labelled && c.name && (
-                <text y={46} textAnchor="middle" fontSize={13} fontWeight={700} fill="#4a443b">
+                <text y={48} textAnchor="middle" fontSize={13} fontWeight={700} fill="#d7e8e1" letterSpacing="0.03em">
                   {c.name}
                 </text>
               )}
