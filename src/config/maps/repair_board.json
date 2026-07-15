@@ -1,17 +1,18 @@
 {
   "scene": "repair_board",
-  "viewBox": [560, 480],
-  "connect": ["s2", "c1"],
+  "viewBox": [660, 470],
+  "connect": ["w11", "w3"],
   "components": [
-    { "id": "s1", "name": "Kessel", "shape": "socket", "color": "#3a3630", "pos": [95, 120] },
-    { "id": "s2", "name": "Marno", "shape": "socket", "color": "#3a3630", "pos": [95, 240] },
-    { "id": "s3", "name": "Dovrel", "shape": "socket", "color": "#3a3630", "pos": [95, 360] },
-    { "id": "c1", "name": "Torvin", "shape": "gauge", "color": "#3b82c4", "pos": [255, 115] },
-    { "id": "c2", "name": "Plabbit", "shape": "chip", "color": "#2f7d4f", "pos": [410, 115] },
-    { "id": "c3", "name": "Wexil", "shape": "cap", "color": "#c98a3a", "pos": [255, 245] },
-    { "id": "c4", "name": "Grumble", "shape": "knob", "color": "#8b5cf6", "pos": [410, 245] },
-    { "id": "c5", "name": "Snorwell", "shape": "coil", "color": "#d9583a", "pos": [255, 375] },
-    { "id": "c6", "name": "Brindle", "shape": "relay", "color": "#6b6355", "pos": [410, 375] },
-    { "id": "c7", "name": "Fenwick", "shape": "led", "color": "#e0a53f", "pos": [505, 245] }
+    { "id": "w1", "name": "Kessel", "shape": "socket", "color": "#3a3630", "pos": [95, 95] },
+    { "id": "w2", "name": "Snorwell", "shape": "coil", "color": "#d9583a", "pos": [255, 80] },
+    { "id": "w3", "name": "Torvin", "shape": "gauge", "color": "#3b82c4", "pos": [430, 95] },
+    { "id": "w4", "name": "Plabbit", "shape": "chip", "color": "#2f7d4f", "pos": [590, 105] },
+    { "id": "w5", "name": "Grumble", "shape": "knob", "color": "#8b5cf6", "pos": [115, 240] },
+    { "id": "w6", "name": "Marno", "shape": "socket", "color": "#3a3630", "pos": [295, 225] },
+    { "id": "w7", "name": "Wexil", "shape": "cap", "color": "#c98a3a", "pos": [475, 215] },
+    { "id": "w8", "name": "Fenwick", "shape": "led", "color": "#e0a53f", "pos": [605, 255] },
+    { "id": "w9", "name": "Dovrel", "shape": "gauge", "color": "#3b82c4", "pos": [155, 385] },
+    { "id": "w10", "name": "Brindle", "shape": "relay", "color": "#6b6355", "pos": [345, 390] },
+    { "id": "w11", "name": "Vornak", "shape": "socket", "color": "#3a3630", "pos": [500, 375] }
   ]
 }

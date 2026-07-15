@@ -7,7 +7,7 @@
   "timeoutMs": 300000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
-  "utteranceSource": { "text": "Drag the middle socket on the left side up onto the round gauge near the top — connect those two." },
+  "utteranceSource": { "text": "Connect the socket in the bottom-right of the panel to the round gauge up at the top-middle — the one near the top, not the gauge in the bottom-left corner." },
   "allowFollowups": false,
   "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
   "seed": 1

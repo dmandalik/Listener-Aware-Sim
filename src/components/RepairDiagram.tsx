@@ -186,7 +186,7 @@ export function RepairDiagram({
         ref={svgRef}
         viewBox={`0 0 ${w} ${h}`}
         width="100%"
-        style={{ maxWidth: 620, display: "block", margin: "0 auto", touchAction: "none", userSelect: "none" }}
+        style={{ maxWidth: 700, display: "block", margin: "0 auto", touchAction: "none", userSelect: "none" }}
         onPointerMove={(e) => {
           if (!dragFrom) return;
           const p = toVB(e.clientX, e.clientY);

@@ -3,11 +3,11 @@
   "scene": "teleop_yard",
   "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": false },
   "viewpoint": "aligned",
-  "budget": 80,
+  "budget": 110,
   "timeoutMs": 300000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
-  "utteranceSource": { "text": "Find the flower 🌸, then move straight down three tiles — the goal is on that tile." },
+  "utteranceSource": { "text": "Head down to the flower 🌸, then move two tiles right and two tiles down — the goal sits between the flower and the car 🚗." },
   "allowFollowups": false,
   "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
   "seed": 1

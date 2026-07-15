@@ -65,7 +65,7 @@ describe("novice shapes-only vs expert labelled", () => {
   it("expert: parts carry their made-up names", () => {
     const c = cond({ keys: { sceneLabels: "all", partsKey: true, controlKey: false } });
     const v = repairTask.listenerView(repairTask.init(c.seed, c), c) as any;
-    expect(v.world.components.find((x: any) => x.id === "s2").name).toBe("Marno");
+    expect(v.world.components.find((x: any) => x.id === "w6").name).toBe("Marno");
   });
 });
 

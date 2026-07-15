@@ -15,9 +15,9 @@
     "################"
   ],
   "start": [1, 1],
-  "goal": [8, 10],
+  "goal": [10, 9],
   "controlMap": { "Z": "up", "G": "down", "R": "right", "N": "left" },
-  "keypad": ["Z", "G", "R", "N", "Q", "X", "B", "M", "K", "V", "P", "W"],
+  "keypad": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"],
   "landmarks": [
     { "name": "rubber duck", "icon": "🦆", "pos": [3, 2] },
     { "name": "soccer ball", "icon": "⚽", "pos": [13, 1] },
@@ -27,7 +27,7 @@
     { "name": "mushroom", "icon": "🍄", "pos": [14, 6] },
     { "name": "flower", "icon": "🌸", "pos": [8, 7] },
     { "name": "star", "icon": "⭐", "pos": [4, 9] },
-    { "name": "car", "icon": "🚗", "pos": [12, 9] },
+    { "name": "car", "icon": "🚗", "pos": [13, 9] },
     { "name": "key", "icon": "🔑", "pos": [14, 10] }
   ]
 }
