@@ -4,6 +4,7 @@
   "showTrialFeedback": true,
   "trials": [
     { "condition": "teleop_novice", "seed": 1 },
-    { "condition": "teleop_expert", "seed": 1 }
+    { "condition": "teleop_novice", "seed": 2 },
+    { "condition": "teleop_novice", "seed": 3 }
   ]
 }

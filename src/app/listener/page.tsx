@@ -10,28 +10,36 @@ import { SpeakerPanel } from "@/components/SpeakerPanel";
 
 type Phase = "loading" | "instructions" | "playing" | "trialEnd" | "done" | "error";
 
-// Task-specific how-to-play copy for the pre-game pop-up.
-function taskGuide(taskId: string): { steps: string[] } {
-  if (taskId === "teleop")
-    return {
-      steps: [
-        "Drive the robot to the goal — but you can’t see where the goal is. Read the robot’s message; it will guide you using the landmarks on the board.",
-        "Press the letter keys to move. The keys are scrambled and unlabeled, so you’ll have to work out which does what — and every press uses up a move.",
-      ],
-    };
-  if (taskId === "repair")
-    return {
-      steps: [
-        "Read the robot’s message, then drag one part onto another to connect them.",
-        "Some parts look alike, so pay attention to exactly which one the message means.",
-      ],
-    };
-  return {
-    steps: [
-      "You can only see the room you’re standing in. Move with the arrow keys or WASD.",
-      "Read the robot’s message, walk to the item it means, and click it to pick it up — you get one pick, so choose well.",
-    ],
-  };
+// How-to-play copy for the pre-game pop-up AND the in-game reference. Tailored to
+// the listener's familiarity (novice vs expert), since what they can see differs.
+function taskGuide(taskId: string, isExpert: boolean, missionTotal: number): { steps: string[] } {
+  const goal =
+    taskId === "teleop"
+      ? "drive the robot to a goal you cannot see"
+      : taskId === "repair"
+        ? "connect the two parts it means"
+        : "find and pick up the part it needs from the building";
+  const intro = `You are the listener. This game has ${missionTotal} missions — in each one a robot sends you a single message and you must ${goal}.`;
+
+  let repr: string;
+  let controls: string;
+  if (taskId === "teleop") {
+    repr = isExpert
+      ? "You can’t see the goal — the message points to it using the landmarks on the board. You have a control key showing which letter moves the robot which way; every press uses up a move."
+      : "You can’t see the goal — the message points to it using the landmarks on the board. The letter keys are scrambled and unlabeled, so you’ll have to work out which does what; every press uses up a move.";
+    controls = "Press the letter keys to drive.";
+  } else if (taskId === "repair") {
+    repr = isExpert
+      ? "Every part is labelled with its name, and the message will name the two parts to connect."
+      : "Several parts look alike and none are labelled, so the message will point you to the right ones by their position.";
+    controls = "Drag one part onto another to connect them.";
+  } else {
+    repr = isExpert
+      ? "You can see the whole building’s layout and every room’s name, and you have a key showing what each part is. You still only see the actual items once you step into a room."
+      : "You can only see the items inside the room you’re standing in — you won’t even know a room’s name until you walk into it, and you have no key for the parts, only their shapes.";
+    controls = "Move with the arrow keys or WASD, read the message, then click the item it means to pick it up — you get one pick.";
+  }
+  return { steps: [intro, repr, controls] };
 }
 
 async function post(url: string, body: unknown): Promise<TrialPayload> {
@@ -294,6 +302,14 @@ export default function ListenerPage() {
   const repairWorld = payload.view.world as unknown as RepairWorldView;
   const partsKey = payload.view.keys.find((k) => k.id === "parts");
   const controlKey = payload.view.keys.find((k) => k.id === "control");
+  // Expert iff they actually hold the task's key (this reflects the current view,
+  // including the dev toggle) — used to tailor the instructions.
+  const isExpertView = isRepair
+    ? !!(payload.view.world as any).labelled
+    : isTeleop
+      ? !!controlKey?.entries
+      : !!partsKey?.entries;
+  const guide = taskGuide(payload.taskId, isExpertView, payload.missionTotal);
   const budgetLeft = payload.view.budgetLeft;
   const budgetPct = Math.max(0, Math.round((budgetLeft / budgetTotal) * 100));
   const low = budgetLeft <= Math.max(3, budgetTotal * 0.2);
@@ -390,17 +406,10 @@ export default function ListenerPage() {
                     </>
                   );
                 })()}
-                <p className="hint">
-                  Read the robot&rsquo;s message, then <b>drag one part onto another</b> to connect them.
-                </p>
               </>
             ) : isTeleop ? (
               <>
                 <TeleopBoard world={teleWorld} />
-                <p className="hint">
-                  Press keys to drive the robot to the goal (you can&rsquo;t see where it is).
-                  <b> Every press costs a move</b> — even ones that do nothing.
-                </p>
                 <Keypad
                   keys={teleWorld.keypad}
                   controlKey={controlKey?.entries}
@@ -409,13 +418,7 @@ export default function ListenerPage() {
                 />
               </>
             ) : (
-              <>
-                <GameBoard world={world} onPick={pick} disabled={phase !== "playing"} />
-                <p className="hint">
-                  Move with <kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd> (or <kbd>WASD</kbd>).
-                  Click an item to pick it up — you get <b>one</b> pick, so choose well.
-                </p>
-              </>
+              <GameBoard world={world} onPick={pick} disabled={phase !== "playing"} />
             )}
           </div>
 
@@ -483,6 +486,16 @@ export default function ListenerPage() {
           </div>
           )}
         </div>
+
+        {/* full instructions kept at the bottom for reference during play */}
+        <div className="game-guide">
+          <b>How to play</b>
+          <ul>
+            {guide.steps.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ul>
+        </div>
       </div>
       )}
 
@@ -494,13 +507,13 @@ export default function ListenerPage() {
             </div>
             <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>How to play</h2>
             <ol style={{ margin: "0 0 14px", paddingLeft: 20, lineHeight: 1.55, color: "var(--ink)" }}>
-              {taskGuide(payload.taskId).steps.map((s, i) => (
+              {guide.steps.map((s, i) => (
                 <li key={i} style={{ marginBottom: 8 }}>{s}</li>
               ))}
             </ol>
             <div className="banner-alert" style={{ background: "var(--accent-wash)", border: "1px solid var(--accent)", color: "var(--accent-ink)" }}>
               ⏱ The timer is your <b>maximum</b> time — but <b>faster is better</b>. Your finishing
-              speed is scored, so don’t stall or wander: get it done as quickly as you can.
+              speed is recorded, so don’t stall or wander: complete the task as quickly as you can.
             </div>
             <div style={{ display: "grid", placeItems: "center", marginTop: 18 }}>
               <button className="btn" onClick={() => setPhase("playing")}>
