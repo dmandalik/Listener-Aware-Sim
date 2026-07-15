@@ -112,6 +112,11 @@ button {
   border-color: var(--line);
   box-shadow: none;
 }
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
 
 /* ── Game shell ─────────────────────────────────────────────────────────────*/
 .game {
