@@ -209,7 +209,7 @@ export async function getSessionDetail(sid: string) {
       id: sess.id, pid: sess.prolificPid, role: sess.role, assignment: sess.assignment,
       status: sess.status, startedAt: sess.startedAt, endedAt: sess.endedAt,
     },
-    participant: part ? { studyId: part.studyId, sessionId: part.sessionId, userAgent: part.userAgent } : null,
+    participant: part ? { name: part.name, studyId: part.studyId, sessionId: part.sessionId, userAgent: part.userAgent } : null,
     trials: (trs as any[]).map((t) => ({
       trialIndex: t.trialIndex, taskId: t.taskId, scene: t.scene, seed: t.seed,
       assignment: t.assignment, utteranceText: t.utteranceText, speakerPid: t.speakerPid,

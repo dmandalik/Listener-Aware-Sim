@@ -390,6 +390,7 @@ export async function startListenerSession(args: {
   studyName: string;
   prolific: ProlificIdentity;
   userAgent?: string;
+  name?: string | null;
   assignment?: Assignment | null; // 'novice' | 'expert' when routed from /play
 }): Promise<TrialPayload> {
   await ready();
@@ -404,6 +405,7 @@ export async function startListenerSession(args: {
     prolificPid: args.prolific.pid,
     studyId: args.prolific.studyId,
     sessionId: args.prolific.sessionId,
+    name: args.name,
     role: "listener",
     userAgent: args.userAgent,
     consentedAt: new Date(),
@@ -805,6 +807,7 @@ export async function startSpeakerSession(args: {
   studyName: string;
   prolific: ProlificIdentity;
   userAgent?: string;
+  name?: string | null;
   assignment?: Assignment | null;
 }): Promise<SpeakerTrialPayload> {
   await ready();
@@ -817,6 +820,7 @@ export async function startSpeakerSession(args: {
     prolificPid: args.prolific.pid,
     studyId: args.prolific.studyId,
     sessionId: args.prolific.sessionId,
+    name: args.name,
     role: "speaker",
     userAgent: args.userAgent,
     consentedAt: new Date(),
@@ -874,6 +878,7 @@ export interface AssignResult {
 export async function assignAndStart(args: {
   prolific: ProlificIdentity;
   userAgent?: string;
+  name?: string | null;
 }): Promise<AssignResult> {
   await ready();
   const assignment = await pickAssignment();
@@ -882,6 +887,7 @@ export async function assignAndStart(args: {
       studyName: "main_speaker",
       prolific: args.prolific,
       userAgent: args.userAgent,
+      name: args.name,
       assignment: "speaker",
     });
     return { kind: "speaker", assignment, sessionId: p.sessionId };
@@ -890,6 +896,7 @@ export async function assignAndStart(args: {
     studyName: "main_listener",
     prolific: args.prolific,
     userAgent: args.userAgent,
+    name: args.name,
     assignment,
   });
   return { kind: "listener", assignment, sessionId: p.sessionId };

@@ -7,17 +7,15 @@ import { isMobileDevice } from "@/lib/mobile";
 type Cfg = {
   requireProlific: boolean;
   consent: { title: string; body: string; agreeLabel: string; declineLabel: string };
-  attention: { question: string; options: string[] };
   completeUrl: string;
   screenoutUrl: string;
 };
-type Step = "loading" | "no-params" | "mobile" | "consent" | "attention" | "go" | "screened";
+type Step = "loading" | "no-params" | "mobile" | "consent" | "name" | "go" | "screened";
 
 export default function Entry() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [step, setStep] = useState<Step>("loading");
-  const [pick, setPick] = useState<string | null>(null);
-  const [attnErr, setAttnErr] = useState(false);
+  const [name, setName] = useState("");
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -41,25 +39,11 @@ export default function Entry() {
   }, []);
 
   const goToPlay = useCallback(() => {
+    sessionStorage.setItem("participantName", name.trim());
     setStep("go");
     const qs = new URLSearchParams(params).toString();
     window.location.assign(qs ? `/play?${qs}` : "/play");
-  }, [params]);
-
-  const submitAttention = useCallback(async () => {
-    setAttnErr(false);
-    const res = await fetch("/api/attention", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answer: pick }),
-    });
-    const { pass } = await res.json();
-    if (pass) goToPlay();
-    else {
-      setAttnErr(true);
-      setStep("screened");
-    }
-  }, [pick, goToPlay]);
+  }, [params, name]);
 
   const card = (children: React.ReactNode, width = 560) => (
     <main className="center-screen">
@@ -110,7 +94,7 @@ export default function Entry() {
     return card(
       <>
         <div className="eyebrow">Thanks for your time</div>
-        <h1 style={{ margin: "6px 0 10px", fontSize: 24 }}>{attnErr ? "This part didn’t match." : "You’ve chosen not to continue."}</h1>
+        <h1 style={{ margin: "6px 0 10px", fontSize: 24 }}>You’ve chosen not to continue.</h1>
         <p style={{ color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 20 }}>
           No problem — you can return to Prolific now.
         </p>
@@ -131,7 +115,7 @@ export default function Entry() {
         <h1 style={{ margin: "4px 0 12px", fontSize: 26 }}>{cfg.consent.title}</h1>
         <p style={{ color: "var(--ink)", lineHeight: 1.6, fontSize: 15 }}>{cfg.consent.body}</p>
         <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
-          <button className="btn" onClick={() => setStep("attention")}>{cfg.consent.agreeLabel}</button>
+          <button className="btn" onClick={() => setStep("name")}>{cfg.consent.agreeLabel}</button>
           <a className="btn ghost" href={cfg.screenoutUrl} style={{ textDecoration: "none" }}>{cfg.consent.declineLabel}</a>
         </div>
       </>,
@@ -139,29 +123,32 @@ export default function Entry() {
     );
   }
 
-  if (step === "attention" && cfg) {
+  if (step === "name") {
     return card(
       <>
-        <div className="eyebrow">Quick check</div>
-        <h2 style={{ margin: "6px 0 16px", fontSize: 20 }}>{cfg.attention.question}</h2>
-        <div style={{ display: "grid", gap: 8 }}>
-          {cfg.attention.options.map((o) => (
-            <button
-              key={o}
-              onClick={() => setPick(o)}
-              className="btn ghost"
-              style={{
-                textAlign: "left",
-                borderColor: pick === o ? "var(--accent)" : "var(--line)",
-                background: pick === o ? "var(--accent-wash)" : "transparent",
-              }}
-            >
-              {o}
-            </button>
-          ))}
-        </div>
-        <button className="btn" style={{ marginTop: 18 }} disabled={!pick} onClick={submitAttention}>
-          Continue
+        <div className="eyebrow">Almost there</div>
+        <h2 style={{ margin: "6px 0 8px", fontSize: 22 }}>What’s your name?</h2>
+        <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 14 }}>
+          We use it only to label your responses in the study.
+        </p>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && name.trim() && goToPlay()}
+          placeholder="Your name"
+          maxLength={120}
+          style={{
+            width: "100%",
+            padding: "12px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--line)",
+            fontSize: 16,
+            fontFamily: "var(--font-sans)",
+          }}
+        />
+        <button className="btn" style={{ marginTop: 16 }} disabled={!name.trim()} onClick={goToPlay}>
+          Start →
         </button>
       </>,
     );

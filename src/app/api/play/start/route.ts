@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     };
     const result = await assignAndStart({
       prolific,
+      name: typeof body.name === "string" ? body.name.trim().slice(0, 120) || null : null,
       userAgent: req.headers.get("user-agent") ?? undefined,
     });
     return NextResponse.json(result);

@@ -33,6 +33,7 @@ export const participants = pgTable(
     prolificPid: text("prolific_pid").primaryKey(),
     studyId: text("study_id").notNull(),
     sessionId: text("session_id").notNull(), // Prolific's own SESSION_ID
+    name: text("name"), // self-reported name, collected at entry
     role: text("role", { enum: ["speaker", "listener"] }).notNull(),
     consentedAt: timestamp("consented_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),

@@ -43,6 +43,13 @@
       "when": 1784123352326,
       "tag": "0005_mighty_adam_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784136144403,
+      "tag": "0006_wise_jocasta",
+      "breakpoints": true
     }
   ]
 }

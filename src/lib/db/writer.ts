@@ -37,6 +37,7 @@ export interface UpsertParticipantArgs {
   prolificPid: string;
   studyId: string;
   sessionId: string;
+  name?: string | null;
   role: "speaker" | "listener";
   userAgent?: string;
   consentedAt?: Date;
@@ -52,6 +53,7 @@ export async function upsertParticipant(
       prolificPid: a.prolificPid,
       studyId: a.studyId,
       sessionId: a.sessionId,
+      name: a.name ?? null,
       role: a.role,
       userAgent: a.userAgent ?? null,
       consentedAt: a.consentedAt ?? null,
@@ -63,6 +65,7 @@ export async function upsertParticipant(
         sessionId: a.sessionId,
         role: a.role,
         userAgent: a.userAgent ?? null,
+        ...(a.name ? { name: a.name } : {}),
         ...(a.consentedAt ? { consentedAt: a.consentedAt } : {}),
       },
     })
