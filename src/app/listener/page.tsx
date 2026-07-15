@@ -34,8 +34,10 @@ export default function ListenerPage() {
   viewAsRef.current = viewAs;
   const busy = useRef(false);
 
+  const [completeUrl, setCompleteUrl] = useState<string | null>(null);
   useEffect(() => {
     setDev(new URLSearchParams(window.location.search).get("dev") === "1");
+    fetch("/api/study-config").then((r) => r.json()).then((c) => setCompleteUrl(c.completeUrl)).catch(() => {});
   }, []);
 
   const beginTrial = useCallback(async (p: TrialPayload) => {
@@ -245,9 +247,14 @@ export default function ListenerPage() {
             <RobotAvatar mood="thanking" size={92} />
           </div>
           <h1 style={{ margin: "6px 0 8px" }}>All missions complete!</h1>
-          <p style={{ color: "var(--ink-soft)" }}>
-            Thank you — your data has been recorded. You may now return to Prolific.
+          <p style={{ color: "var(--ink-soft)", marginBottom: 20 }}>
+            Thank you — your data has been recorded.
           </p>
+          {completeUrl && (
+            <a className="btn" href={completeUrl} style={{ display: "inline-block", textDecoration: "none" }}>
+              Finish &amp; return to Prolific
+            </a>
+          )}
         </div>
       </main>
     );

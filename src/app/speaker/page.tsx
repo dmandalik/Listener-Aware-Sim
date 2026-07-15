@@ -23,6 +23,10 @@ export default function SpeakerPage() {
   const [payload, setPayload] = useState<SpeakerTrialPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedThisTrial, setSavedThisTrial] = useState(false);
+  const [completeUrl, setCompleteUrl] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/study-config").then((r) => r.json()).then((c) => setCompleteUrl(c.completeUrl)).catch(() => {});
+  }, []);
 
   const begin = useCallback((p: SpeakerTrialPayload) => {
     if (p.done) {
@@ -114,10 +118,15 @@ export default function SpeakerPage() {
             <RobotAvatar mood="thanking" size={92} />
           </div>
           <h1 style={{ margin: "6px 0 8px" }}>Thank you!</h1>
-          <p style={{ color: "var(--ink-soft)" }}>
+          <p style={{ color: "var(--ink-soft)", marginBottom: 20 }}>
             Your messages are saved. Real helpers will try to follow them later — clearer
-            messages earn a bonus. You may now return to Prolific.
+            messages earn a bonus.
           </p>
+          {completeUrl && (
+            <a className="btn" href={completeUrl} style={{ display: "inline-block", textDecoration: "none" }}>
+              Finish &amp; return to Prolific
+            </a>
+          )}
         </div>
       </main>
     );

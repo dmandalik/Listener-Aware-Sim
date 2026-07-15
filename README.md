@@ -129,7 +129,15 @@ scripts/
         speaker. Dev: `/listener?study=repair_pilot`.
       - Both slot into the shared engine, headless runner, task-aware `/listener` UI,
         and the task-aware speaker view. 33 tests; browser-verified.
-- [ ] M6 — Prolific integration (params, consent, mobile block, redirects)
+- [x] **M6 — Prolific integration.** Entry gate at `/`: **mobile block** → **config-driven
+      consent** (with the speaker-bonus notice) → **config-driven attention check**
+      (answer verified server-side). Prolific params (`PROLIFIC_PID`/`STUDY_ID`/
+      `SESSION_ID`) captured and stamped on every session; **required in production**
+      (missing → error, never a null participant). On finish/screen-out, redirect to
+      `PROLIFIC_COMPLETE_BASE?cc=<code>`. Copy in
+      [`src/config/prolific.json`](src/config/prolific.json); codes in env.
+
+      **Prolific study URL:** `https://<host>/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}`
 - [x] **M7 — `/admin` dashboard + exports.** Secret-gated (`ADMIN_SECRET`): live
       dashboard (sessions started/completed/abandoned, per-condition-cell counts +
       success + median time/moves, dropout, pool), one-click **CSV/JSONL export** per
