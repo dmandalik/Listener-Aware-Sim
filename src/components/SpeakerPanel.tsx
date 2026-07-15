@@ -130,10 +130,10 @@ export function SpeakerPanel({
           onChange={(e) => setText(e.target.value)}
           placeholder={
             data.taskId === "teleop"
-              ? "e.g. Drive right to the apple, then down two tiles to the goal…"
+              ? "Write your message to the driver here…"
               : data.taskId === "repair"
-                ? "e.g. Drag the middle socket on the left onto the round gauge…"
-                : "e.g. Go up two rooms and left to the far corner; grab the star-shaped part…"
+                ? "Write your message to the technician here…"
+                : "Write your message to the helper here…"
           }
         />
         <div className="row">

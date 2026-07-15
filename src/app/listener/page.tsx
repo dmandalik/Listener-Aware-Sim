@@ -10,36 +10,75 @@ import { SpeakerPanel } from "@/components/SpeakerPanel";
 
 type Phase = "loading" | "instructions" | "playing" | "trialEnd" | "done" | "error";
 
-// How-to-play copy for the pre-game pop-up AND the in-game reference. Tailored to
-// the listener's familiarity (novice vs expert), since what they can see differs.
-function taskGuide(taskId: string, isExpert: boolean, missionTotal: number): { steps: string[] } {
-  const goal =
-    taskId === "teleop"
-      ? "drive the robot to a goal you cannot see"
-      : taskId === "repair"
-        ? "connect the two parts it means"
-        : "find and pick up the part it needs from the building";
-  const intro = `You are the listener. This game has ${missionTotal} missions — in each one a robot sends you a single message and you must ${goal}.`;
+// How-to-play copy for the pre-game pop-up AND the in-game reference. Kept short
+// and plain for people who’ve never seen this study. Tailored to the listener’s
+// familiarity (novice vs expert), since what they can see differs. Emphasis uses
+// <strong> (not <b>) because `.game-guide b` is reserved for the section header.
+function taskGuide(taskId: string, isExpert: boolean, missionTotal: number): { steps: React.ReactNode[] } {
+  const rounds = (
+    <>
+      You’ll do this <strong>{missionTotal} time{missionTotal === 1 ? "" : "s"}</strong>, and each time the robot
+      sends you <strong>one message</strong> to follow.
+    </>
+  );
 
-  let repr: string;
-  let controls: string;
   if (taskId === "teleop") {
-    repr = isExpert
-      ? "You can’t see the goal — the message points to it using the landmarks on the board. You have a control key showing which letter moves the robot which way; every press uses up a move."
-      : "You can’t see the goal — the message points to it using the landmarks on the board. The letter keys are scrambled and unlabeled, so you’ll have to work out which does what; every press uses up a move.";
-    controls = "Press the letter keys to drive.";
-  } else if (taskId === "repair") {
-    repr = isExpert
-      ? "Every part is labelled with its name, and the message will name the two parts to connect."
-      : "Several parts look alike and none are labelled, so the message will point you to the right ones by their position.";
-    controls = "Drag one part onto another to connect them.";
-  } else {
-    repr = isExpert
-      ? "You can see the whole building’s layout and every room’s name, and you have a key showing what each part is. You still only see the actual items once you step into a room."
-      : "You can only see the items inside the room you’re standing in — you won’t even know a room’s name until you walk into it, and you have no key for the parts, only their shapes.";
-    controls = "Move with the arrow keys or WASD, read the message, then click the item it means to pick it up — you get one pick.";
+    return {
+      steps: [
+        <>You’re the <strong>driver</strong>: steer a robot to its goal. {rounds}</>,
+        isExpert ? (
+          <>
+            <strong>You can’t see the goal</strong> — the message describes where it is using the objects on the
+            board. Your key list shows which letter moves the robot which way.
+          </>
+        ) : (
+          <>
+            <strong>You can’t see the goal</strong> — the message describes where it is using the objects on the
+            board. The move keys are <strong>unlabeled letters</strong>, so part of the task is figuring out which
+            key goes which way.
+          </>
+        ),
+        <>Press the letter keys to move. <strong>Every press is one move — don’t waste them.</strong></>,
+      ],
+    };
   }
-  return { steps: [intro, repr, controls] };
+  if (taskId === "repair") {
+    return {
+      steps: [
+        <>Your job is to <strong>fix a robot by joining two of its parts</strong>. {rounds}</>,
+        isExpert ? (
+          <><strong>Every part is labeled</strong> with its name, and the message tells you which two to join.</>
+        ) : (
+          <>
+            <strong>Several parts look alike and none are labeled</strong>, so the message points to the right ones
+            by <strong>where they sit</strong> on the board.
+          </>
+        ),
+        <><strong>Drag one part onto the other</strong> to connect them.</>,
+      ],
+    };
+  }
+  // retrieval
+  return {
+    steps: [
+      <>Your job is to <strong>pick up the one part</strong> a broken robot needs. {rounds}</>,
+      isExpert ? (
+        <>
+          You can see the <strong>whole building and every room’s name</strong>, plus a list of the parts. You only
+          see the items themselves once you <strong>step into a room</strong>.
+        </>
+      ) : (
+        <>
+          You can <strong>only see inside the room you’re in</strong> — you won’t know a room’s name until you enter
+          it, and you have no parts list, just their shapes.
+        </>
+      ),
+      <>
+        Move with the <strong>arrow keys or WASD</strong>, then <strong>click the item</strong> the message means.{" "}
+        <strong>You get one pick — choose carefully.</strong>
+      </>,
+    ],
+  };
 }
 
 async function post(url: string, body: unknown): Promise<TrialPayload> {
@@ -512,8 +551,8 @@ export default function ListenerPage() {
               ))}
             </ol>
             <div className="banner-alert" style={{ background: "var(--accent-wash)", border: "1px solid var(--accent)", color: "var(--accent-ink)" }}>
-              ⏱ The timer is your <b>maximum</b> time — but <b>faster is better</b>. Your finishing
-              speed is recorded, so don’t stall or wander: complete the task as quickly as you can.
+              ⏱ The timer is your <b>time limit</b> — but <b>faster is better</b>. Your speed is
+              recorded, so finish as quickly as you can.
             </div>
             <div style={{ display: "grid", placeItems: "center", marginTop: 18 }}>
               <button className="btn" onClick={() => setPhase("playing")}>

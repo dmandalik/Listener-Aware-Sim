@@ -186,31 +186,31 @@ export type ViewAs = "novice" | "expert" | "speaker";
 const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
   retrieval: {
     description:
-      "A helper robot has broken down inside this building and needs one part retrieved. " +
-      "A person will go in to fetch it — but they can only see the room they are standing in, " +
-      "they don't know the building's layout, and they don't know what any of the parts are. " +
-      "You can see everything: the full map and the target part (highlighted). ",
+      "A helper robot has broken down in this building and needs one part brought to it. " +
+      "The person who fetches it can only see the room they are standing in — they don't know " +
+      "the layout, and they don't know what any part is. You can see everything: the full map, " +
+      "with the target part highlighted.",
     prompt:
-      "Write ONE message that tells a completely new helper exactly how to find and pick up " +
-      "the highlighted part. You get a single message — make it count.",
+      "Write ONE message telling this helper how to find and pick up the highlighted part. " +
+      "You get a single message — make it count.",
   },
   teleop: {
     description:
-      "A person will drive this robot to the goal (marked below). But they CANNOT see the goal, " +
-      "and the drive keys are mapped to arbitrary letters they don't know. You can see everything: " +
-      "the full track, the goal, and which letter moves the robot which way. ",
+      "Someone will drive this robot to the goal (highlighted below). But they cannot see the goal, " +
+      "and the drive keys are random letters they don't know. You can see everything: the whole track, " +
+      "the goal, and which letter moves the robot which way.",
     prompt:
-      "Write ONE message that gets a new driver to the goal. You can spend it on the route, on the " +
-      "key mapping, or both — but you only get a single message.",
+      "Write ONE message that gets the driver to the goal. Spend it on the route, the keys, or both " +
+      "— but you only get a single message.",
   },
   repair: {
     description:
-      "This robot has a fault: two parts must be connected. A technician will DRAG one part onto the " +
-      "other — but they may not know what any part is called, and several parts look identical. You " +
-      "can see the whole board with every part labelled, and the two parts to connect are wired together. ",
+      "This robot has a fault: two of its parts must be connected. A technician will drag one part onto " +
+      "the other, but several parts look identical and they may not know the names. You can see the whole " +
+      "board with every part labelled, and the two to connect are highlighted.",
     prompt:
-      "Write ONE message telling the technician exactly which two parts to connect. Watch out — several " +
-      "parts look the same, so “the socket” won’t be enough; say which one.",
+      "Write ONE message telling the technician exactly which two parts to connect. Several parts look alike, " +
+      "so “the socket” isn't enough — say which one.",
   },
 };
 
