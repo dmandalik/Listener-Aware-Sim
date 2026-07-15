@@ -50,6 +50,13 @@
       "when": 1784136144403,
       "tag": "0006_wise_jocasta",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784136701172,
+      "tag": "0007_daffy_vengeance",
+      "breakpoints": true
     }
   ]
 }

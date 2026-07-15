@@ -1,15 +1,23 @@
 {
-  "_comment": "Config-driven consent + attention check (§8). Completion codes / base URL come from env (PROLIFIC_COMPLETION_CODE, PROLIFIC_SCREENOUT_CODE, PROLIFIC_COMPLETE_BASE).",
+  "_comment": "Config-driven consent (§8). Completion codes / base URL come from env.",
   "requireProlificParams": true,
   "consent": {
-    "title": "Before you begin",
-    "body": "You are invited to take part in a short research study on how people give and follow instructions. It takes about 10–20 minutes and must be done on a desktop or laptop with a keyboard. You will play a small puzzle game — either writing a single instruction for another person, or following an instruction someone else wrote. If you are assigned the instruction-writer role, you can earn a BONUS on top of your base pay, based on how well later participants succeed using your instruction, so please take it seriously. Your responses are recorded anonymously and used only for research. Participation is voluntary and you may stop at any time by closing the tab.",
-    "agreeLabel": "I agree — begin",
-    "declineLabel": "I do not agree"
-  },
-  "attention": {
-    "question": "To confirm you are reading carefully, please select the word “triangle”.",
-    "options": ["circle", "triangle", "square", "hexagon"],
-    "answerIndex": 1
+    "title": "Consent to participate in research",
+    "sections": [
+      { "p": "We are asking you to participate in a research study titled “Listener-Aware Inverse Semantics for Robot Help Requests in Indoor Navigation,” led by Dr. Angelique Taylor, Department of Information Science, Cornell Tech." },
+      { "h": "What the study is about", "p": "The purpose of this research is to investigate how robots can generate spoken help requests that diverse listeners can correctly act on when the robot encounters an obstacle such as a closed door, a blocked passage, or an out-of-reach button in an indoor environment. This is an online study with no in-person component." },
+      { "h": "What we will ask you to do", "p": "You will be assigned to play a series of three games. All game instructions will be provided." },
+      { "h": "Risks and discomforts", "p": "There are no known physical risks associated with this online study. All participation takes place remotely from your own computer." },
+      { "h": "Benefits", "p": "There may or may not be a direct benefit to you from participating in this study. The investigator may learn more about how robots can communicate more clearly with diverse people in shared spaces, and society may benefit from this knowledge." },
+      { "h": "Privacy, confidentiality & data security", "p": "Research records will be kept confidential to the extent allowed by law. Your responses will be stored using your name only. Your name will not appear in any research data, publications, or presentations. Data will be stored securely on Cornell Box and will only be accessible to authorized members of the research team. Please note that email communication is neither private nor secure. We cannot guarantee against interception of data sent via the internet by third parties." },
+      { "h": "Sharing de-identified data", "p": "De-identified data from this study may be shared with the research community at large to advance science. We will remove or code any personal information that could identify you before files are shared with other researchers to ensure that, by current scientific standards and known methods, no one will be able to identify you from the information we share." },
+      { "h": "Future use of identifiable data", "p": "Identifiable information will not be used or distributed beyond the research team." },
+      { "h": "Taking part is voluntary", "p": "Participation in this research is voluntary. You may refuse to participate before the study begins, discontinue at any time, or skip any questions or procedures that make you feel uncomfortable, with no penalty and no effect on the compensation earned before withdrawing, or your academic standing, record, or relationship with the university." },
+      { "h": "If you have questions", "p": "You may contact Dr. Angelique Taylor at amt298@cornell.edu or 646-971-3823." },
+      { "h": "Statement of consent", "p": "By clicking “I Agree” and proceeding to the study, you confirm that you have read and understood the information above, that you are 18 years of age or older, and that you voluntarily agree to participate in this study." }
+    ],
+    "dataSharing": { "question": "I agree that my de-identified data may be included in a publicly available research dataset." },
+    "agreeLabel": "I Agree — Proceed to Study",
+    "declineLabel": "I Do Not Agree — Exit"
   }
 }

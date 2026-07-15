@@ -11,8 +11,13 @@ import { loadProlificConfig } from "@/lib/config";
 
 export interface PublicStudyConfig {
   requireProlific: boolean;
-  consent: { title: string; body: string; agreeLabel: string; declineLabel: string };
-  attention: { question: string; options: string[] };
+  consent: {
+    title: string;
+    sections: Array<{ h?: string; p: string }>;
+    dataSharing: { question: string };
+    agreeLabel: string;
+    declineLabel: string;
+  };
   completeUrl: string;
   screenoutUrl: string;
 }
@@ -25,13 +30,7 @@ export function getPublicStudyConfig(): PublicStudyConfig {
     // Only enforced in production, so local dev can exercise the flow without params.
     requireProlific: cfg.requireProlificParams && process.env.NODE_ENV === "production",
     consent: cfg.consent,
-    attention: { question: cfg.attention.question, options: cfg.attention.options },
     completeUrl: url(e.PROLIFIC_COMPLETION_CODE),
     screenoutUrl: url(e.PROLIFIC_SCREENOUT_CODE),
   };
-}
-
-export function verifyAttention(answer: unknown): boolean {
-  const cfg = loadProlificConfig();
-  return answer === cfg.attention.options[cfg.attention.answerIndex];
 }

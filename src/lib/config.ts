@@ -229,14 +229,10 @@ export const zProlificConfig = z.object({
   requireProlificParams: z.boolean().default(true),
   consent: z.object({
     title: z.string(),
-    body: z.string(),
+    sections: z.array(z.object({ h: z.string().optional(), p: z.string() })).min(1),
+    dataSharing: z.object({ question: z.string() }),
     agreeLabel: z.string(),
     declineLabel: z.string(),
-  }),
-  attention: z.object({
-    question: z.string(),
-    options: z.array(z.string()).min(2),
-    answerIndex: z.number().int().nonnegative(),
   }),
 });
 

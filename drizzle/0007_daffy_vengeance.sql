@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "data_sharing_consent" boolean;

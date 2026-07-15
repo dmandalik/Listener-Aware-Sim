@@ -6,7 +6,13 @@ import { isMobileDevice } from "@/lib/mobile";
 
 type Cfg = {
   requireProlific: boolean;
-  consent: { title: string; body: string; agreeLabel: string; declineLabel: string };
+  consent: {
+    title: string;
+    sections: Array<{ h?: string; p: string }>;
+    dataSharing: { question: string };
+    agreeLabel: string;
+    declineLabel: string;
+  };
   completeUrl: string;
   screenoutUrl: string;
 };
@@ -16,6 +22,7 @@ export default function Entry() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [step, setStep] = useState<Step>("loading");
   const [name, setName] = useState("");
+  const [dataShare, setDataShare] = useState<"yes" | "no" | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -44,6 +51,12 @@ export default function Entry() {
     const qs = new URLSearchParams(params).toString();
     window.location.assign(qs ? `/play?${qs}` : "/play");
   }, [params, name]);
+
+  const agree = useCallback(() => {
+    if (!dataShare) return;
+    sessionStorage.setItem("dataSharingConsent", dataShare);
+    setStep("name");
+  }, [dataShare]);
 
   const card = (children: React.ReactNode, width = 560) => (
     <main className="center-screen">
@@ -106,20 +119,49 @@ export default function Entry() {
   }
 
   if (step === "consent" && cfg) {
-    return card(
-      <>
-        <div style={{ display: "grid", placeItems: "center", marginBottom: 6 }}>
-          <RobotAvatar mood="hopeful" size={72} />
+    return (
+      <main className="center-screen">
+        <div className="card" style={{ padding: 0, width: "min(680px, 94vw)", display: "flex", flexDirection: "column", maxHeight: "92vh" }}>
+          <div style={{ padding: "26px 32px 8px" }}>
+            <div className="eyebrow">The Fetch Games</div>
+            <h1 style={{ margin: "4px 0 2px", fontSize: 24 }}>{cfg.consent.title}</h1>
+          </div>
+          <div style={{ overflowY: "auto", padding: "8px 32px", flex: 1 }}>
+            {cfg.consent.sections.map((s, i) => (
+              <div key={i} style={{ marginBottom: 12 }}>
+                {s.h && <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{s.h}</div>}
+                <p style={{ margin: 0, color: "var(--ink)", lineHeight: 1.55, fontSize: 14 }}>{s.p}</p>
+              </div>
+            ))}
+            <div style={{ background: "var(--paper-2)", border: "1px solid var(--line)", borderRadius: 8, padding: "12px 14px", margin: "6px 0 4px" }}>
+              <div style={{ fontSize: 14, marginBottom: 8 }}>{cfg.consent.dataSharing.question}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {(["yes", "no"] as const).map((v) => (
+                  <button
+                    key={v}
+                    className="btn ghost"
+                    onClick={() => setDataShare(v)}
+                    style={{
+                      borderColor: dataShare === v ? "var(--accent)" : "var(--line)",
+                      background: dataShare === v ? "var(--accent-wash)" : "transparent",
+                      textTransform: "uppercase",
+                      minWidth: 76,
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, padding: "12px 32px 24px", borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
+            <button className="btn" onClick={agree} disabled={!dataShare} title={!dataShare ? "Please choose Yes or No above" : undefined}>
+              {cfg.consent.agreeLabel}
+            </button>
+            <a className="btn ghost" href={cfg.screenoutUrl} style={{ textDecoration: "none" }}>{cfg.consent.declineLabel}</a>
+          </div>
         </div>
-        <div className="eyebrow">The Fetch Games</div>
-        <h1 style={{ margin: "4px 0 12px", fontSize: 26 }}>{cfg.consent.title}</h1>
-        <p style={{ color: "var(--ink)", lineHeight: 1.6, fontSize: 15 }}>{cfg.consent.body}</p>
-        <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
-          <button className="btn" onClick={() => setStep("name")}>{cfg.consent.agreeLabel}</button>
-          <a className="btn ghost" href={cfg.screenoutUrl} style={{ textDecoration: "none" }}>{cfg.consent.declineLabel}</a>
-        </div>
-      </>,
-      620,
+      </main>
     );
   }
 

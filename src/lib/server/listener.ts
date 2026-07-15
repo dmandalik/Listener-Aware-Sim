@@ -391,6 +391,7 @@ export async function startListenerSession(args: {
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
+  dataSharingConsent?: boolean | null;
   assignment?: Assignment | null; // 'novice' | 'expert' when routed from /play
 }): Promise<TrialPayload> {
   await ready();
@@ -406,6 +407,7 @@ export async function startListenerSession(args: {
     studyId: args.prolific.studyId,
     sessionId: args.prolific.sessionId,
     name: args.name,
+    dataSharingConsent: args.dataSharingConsent,
     role: "listener",
     userAgent: args.userAgent,
     consentedAt: new Date(),
@@ -808,6 +810,7 @@ export async function startSpeakerSession(args: {
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
+  dataSharingConsent?: boolean | null;
   assignment?: Assignment | null;
 }): Promise<SpeakerTrialPayload> {
   await ready();
@@ -821,6 +824,7 @@ export async function startSpeakerSession(args: {
     studyId: args.prolific.studyId,
     sessionId: args.prolific.sessionId,
     name: args.name,
+    dataSharingConsent: args.dataSharingConsent,
     role: "speaker",
     userAgent: args.userAgent,
     consentedAt: new Date(),
@@ -879,25 +883,25 @@ export async function assignAndStart(args: {
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
+  dataSharingConsent?: boolean | null;
 }): Promise<AssignResult> {
   await ready();
   const assignment = await pickAssignment();
+  const common = { userAgent: args.userAgent, name: args.name, dataSharingConsent: args.dataSharingConsent };
   if (assignment === "speaker") {
     const p = await startSpeakerSession({
       studyName: "main_speaker",
       prolific: args.prolific,
-      userAgent: args.userAgent,
-      name: args.name,
       assignment: "speaker",
+      ...common,
     });
     return { kind: "speaker", assignment, sessionId: p.sessionId };
   }
   const p = await startListenerSession({
     studyName: "main_listener",
     prolific: args.prolific,
-    userAgent: args.userAgent,
-    name: args.name,
     assignment,
+    ...common,
   });
   return { kind: "listener", assignment, sessionId: p.sessionId };
 }

@@ -18,10 +18,12 @@ export default function PlayPage() {
     };
     const dev = qs.get("dev") === "1" ? "&dev=1" : "";
     const name = sessionStorage.getItem("participantName") ?? undefined;
+    const ds = sessionStorage.getItem("dataSharingConsent");
+    const dataSharingConsent = ds === "yes" ? true : ds === "no" ? false : undefined;
     fetch("/api/play/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prolific, name }),
+      body: JSON.stringify({ prolific, name, dataSharingConsent }),
     })
       .then(async (res) => {
         const json = await res.json();

@@ -34,6 +34,8 @@ export const participants = pgTable(
     studyId: text("study_id").notNull(),
     sessionId: text("session_id").notNull(), // Prolific's own SESSION_ID
     name: text("name"), // self-reported name, collected at entry
+    // Consent choice: may de-identified data be shared in a public dataset?
+    dataSharingConsent: boolean("data_sharing_consent"),
     role: text("role", { enum: ["speaker", "listener"] }).notNull(),
     consentedAt: timestamp("consented_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
