@@ -216,16 +216,6 @@ export function RepairDiagram({
         <rect x={14} y={14} width={w - 28} height={h - 28} rx={13} fill="#17372d" stroke="#2b5748" strokeWidth={1.5} />
         <rect x={14} y={14} width={w - 28} height={h - 28} rx={13} fill="url(#pcbgrid)" />
 
-        {/* copper power/ground rails + vias (ambient — not the answer) */}
-        {[64, h - 40].map((y) => (
-          <g key={y}>
-            <line x1={30} y1={y} x2={w - 30} y2={y} stroke="#b9863f" strokeWidth={3} opacity={0.32} />
-            {Array.from({ length: 9 }, (_, i) => (
-              <circle key={i} cx={40 + i * ((w - 80) / 8)} cy={y} r={2.5} fill="#c9964a" opacity={0.5} />
-            ))}
-          </g>
-        ))}
-
         {/* corner mounting screws */}
         {[[26, 26], [w - 26, 26], [26, h - 26], [w - 26, h - 26]].map(([sx, sy], i) => (
           <g key={i} transform={`translate(${sx}, ${sy})`}>
