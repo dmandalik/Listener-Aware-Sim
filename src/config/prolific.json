@@ -1,0 +1,15 @@
+{
+  "_comment": "Config-driven consent + attention check (§8). Completion codes / base URL come from env (PROLIFIC_COMPLETION_CODE, PROLIFIC_SCREENOUT_CODE, PROLIFIC_COMPLETE_BASE).",
+  "requireProlificParams": true,
+  "consent": {
+    "title": "Before you begin",
+    "body": "You are invited to take part in a short research study on how people give and follow instructions. It takes about 10–20 minutes and must be done on a desktop or laptop with a keyboard. You will play a small puzzle game — either writing a single instruction for another person, or following an instruction someone else wrote. If you are assigned the instruction-writer role, you can earn a BONUS on top of your base pay, based on how well later participants succeed using your instruction, so please take it seriously. Your responses are recorded anonymously and used only for research. Participation is voluntary and you may stop at any time by closing the tab.",
+    "agreeLabel": "I agree — begin",
+    "declineLabel": "I do not agree"
+  },
+  "attention": {
+    "question": "To confirm you are reading carefully, please select the word “triangle”.",
+    "options": ["circle", "triangle", "square", "hexagon"],
+    "answerIndex": 1
+  }
+}

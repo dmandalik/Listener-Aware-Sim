@@ -223,6 +223,43 @@ export function loadTeleopMap(name: string): TeleopMap {
   return parseTeleopMap(raw, name);
 }
 
+// ── Prolific: consent + attention check (§8) ─────────────────────────────────
+
+export const zProlificConfig = z.object({
+  requireProlificParams: z.boolean().default(true),
+  consent: z.object({
+    title: z.string(),
+    body: z.string(),
+    agreeLabel: z.string(),
+    declineLabel: z.string(),
+  }),
+  attention: z.object({
+    question: z.string(),
+    options: z.array(z.string()).min(2),
+    answerIndex: z.number().int().nonnegative(),
+  }),
+});
+
+export type ProlificConfig = z.infer<typeof zProlificConfig>;
+
+export function loadProlificConfig(): ProlificConfig {
+  const file = join(CONFIG_ROOT, "prolific.json");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    throw new Error(`Cannot read prolific.json: ${(err as Error).message}`);
+  }
+  const parsed = zProlificConfig.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid prolific.json:\n` +
+        parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n"),
+    );
+  }
+  return parsed.data;
+}
+
 // ── Recruitment policy (which role the next participant gets) ─────────────────
 // Ordered batches; the Kth arrival (within a cycle) gets the covering batch's
 // role, then the pattern repeats. Editing src/config/recruitment.json is the ONE

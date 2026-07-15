@@ -17,6 +17,7 @@ const zEnv = z
 
     PROLIFIC_COMPLETION_CODE: z.string().default("CHANGME_COMPLETE"),
     PROLIFIC_SCREENOUT_CODE: z.string().default("CHANGME_SCREENOUT"),
+    PROLIFIC_COMPLETE_BASE: z.string().default("https://app.prolific.com/submissions/complete"),
   })
   .superRefine((v, ctx) => {
     if (v.DB_DRIVER === "neon" && !v.DATABASE_URL) {

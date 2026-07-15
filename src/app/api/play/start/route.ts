@@ -1,16 +1,26 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { assignAndStart } from "@/lib/server/listener";
+import { getPublicStudyConfig } from "@/lib/server/study-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Single entry point: balanced-random assignment to speaker / novice / expert,
-// then start the matching session. Returns where to route the participant.
+// Single entry point: assign per the recruitment policy, start the matching
+// session, return where to route the participant. In production the real Prolific
+// identity is REQUIRED — never a null/dev participant (§8, §15).
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const p = body.prolific ?? {};
+    const requireProlific = getPublicStudyConfig().requireProlific;
+
+    if (requireProlific && (!p.pid || !p.studyId || !p.sessionId)) {
+      return NextResponse.json(
+        { error: "Missing Prolific identity — open this study from Prolific." },
+        { status: 400 },
+      );
+    }
     const prolific = {
       pid: p.pid ?? `DEV_${randomUUID().slice(0, 8)}`,
       studyId: p.studyId ?? "DEV_STUDY",
