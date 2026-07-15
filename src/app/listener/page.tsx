@@ -8,7 +8,31 @@ import { RepairDiagram, type RepairWorldView } from "@/components/RepairDiagram"
 import { RobotAvatar, type RobotMood } from "@/components/RobotAvatar";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 
-type Phase = "loading" | "playing" | "trialEnd" | "done" | "error";
+type Phase = "loading" | "instructions" | "playing" | "trialEnd" | "done" | "error";
+
+// Task-specific how-to-play copy for the pre-game pop-up.
+function taskGuide(taskId: string): { steps: string[] } {
+  if (taskId === "teleop")
+    return {
+      steps: [
+        "Drive the robot to the goal — but you can’t see where the goal is. Read the robot’s message; it will guide you using the landmarks on the board.",
+        "Press the letter keys to move. The keys are scrambled and unlabeled, so you’ll have to work out which does what — and every press uses up a move.",
+      ],
+    };
+  if (taskId === "repair")
+    return {
+      steps: [
+        "Read the robot’s message, then drag one part onto another to connect them.",
+        "Some parts look alike, so pay attention to exactly which one the message means.",
+      ],
+    };
+  return {
+    steps: [
+      "You can only see the room you’re standing in. Move with the arrow keys or WASD.",
+      "Read the robot’s message, walk to the item it means, and click it to pick it up — you get one pick, so choose well.",
+    ],
+  };
+}
 
 async function post(url: string, body: unknown): Promise<TrialPayload> {
   const res = await fetch(url, {
@@ -43,7 +67,9 @@ export default function ListenerPage() {
   const beginTrial = useCallback(async (p: TrialPayload) => {
     setBudgetTotal(p.view?.budgetLeft || 1);
     setTimeLeft(Math.round((p.timeoutMs || 0) / 1000));
-    setPhase(p.terminal ? "trialEnd" : "playing");
+    // Show the how-to-play pop-up (timer paused) before the FIRST mission. Later
+    // missions are gated by the "Next mission" button, so they start straight away.
+    setPhase(p.terminal ? "trialEnd" : p.trialIndex === 0 ? "instructions" : "playing");
     // Apply the current dev override (if any) to the freshly-opened trial.
     if (viewAsRef.current) {
       try {
@@ -458,6 +484,31 @@ export default function ListenerPage() {
           )}
         </div>
       </div>
+      )}
+
+      {phase === "instructions" && (
+        <div className="overlay">
+          <div className="panel" style={{ width: "min(500px, 92vw)", textAlign: "left" }}>
+            <div style={{ display: "grid", placeItems: "center", marginBottom: 6 }}>
+              <RobotAvatar mood="hopeful" size={72} />
+            </div>
+            <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>How to play</h2>
+            <ol style={{ margin: "0 0 14px", paddingLeft: 20, lineHeight: 1.55, color: "var(--ink)" }}>
+              {taskGuide(payload.taskId).steps.map((s, i) => (
+                <li key={i} style={{ marginBottom: 8 }}>{s}</li>
+              ))}
+            </ol>
+            <div className="banner-alert" style={{ background: "var(--accent-wash)", border: "1px solid var(--accent)", color: "var(--accent-ink)" }}>
+              ⏱ The timer is your <b>maximum</b> time — but <b>faster is better</b>. Your finishing
+              speed is scored, so don’t stall or wander: get it done as quickly as you can.
+            </div>
+            <div style={{ display: "grid", placeItems: "center", marginTop: 18 }}>
+              <button className="btn" onClick={() => setPhase("playing")}>
+                Start mission {payload.missionNumber} of {payload.missionTotal} →
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {phase === "trialEnd" && (

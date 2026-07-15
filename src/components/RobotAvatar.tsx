@@ -11,15 +11,14 @@ export function RobotAvatar({
   size?: number;
 }) {
   const eye = mood === "sad" ? "#d9583a" : "#0b5f54";
-  // mouth path per mood
+  // Small mouth, sitting inside the face plate (below the eyes). A gentle smile
+  // by default; a bigger smile when thanking; a frown only when sad.
   const mouth =
     mood === "thanking"
-      ? "M20 40 Q28 48 36 40" // smile
+      ? "M23 33 Q28 38 33 33" // happy smile
       : mood === "sad"
-        ? "M20 44 Q28 38 36 44" // frown
-        : mood === "hopeful"
-          ? "M22 41 h12" // small straight, attentive
-          : "M23 42 q5 3 10 0"; // neutral slight
+        ? "M24 35 Q28 32 32 35" // frown
+        : "M24 34 Q28 37 32 34"; // gentle smile (waiting / hopeful / default)
 
   return (
     <svg
@@ -43,22 +42,22 @@ export function RobotAvatar({
       {/* face plate */}
       <rect x="14" y="19" width="28" height="20" rx="6" fill="#eafaf6" />
       {/* eyes */}
-      <circle cx="22" cy="28" r="3" fill={eye}>
+      <circle cx="22" cy="26" r="2.7" fill={eye}>
         {mood === "waiting" && (
           <animate
             attributeName="ry"
-            values="3;0.6;3"
+            values="2.7;0.6;2.7"
             dur="3.2s"
             keyTimes="0;0.06;0.12"
             repeatCount="indefinite"
           />
         )}
       </circle>
-      <circle cx="34" cy="28" r="3" fill={eye}>
+      <circle cx="34" cy="26" r="2.7" fill={eye}>
         {mood === "waiting" && (
           <animate
             attributeName="ry"
-            values="3;0.6;3"
+            values="2.7;0.6;2.7"
             dur="3.2s"
             keyTimes="0;0.06;0.12"
             repeatCount="indefinite"

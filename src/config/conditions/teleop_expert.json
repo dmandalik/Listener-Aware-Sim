@@ -3,11 +3,11 @@
   "scene": "teleop_yard",
   "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": true },
   "viewpoint": "aligned",
-  "budget": 60,
+  "budget": 80,
   "timeoutMs": 300000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
-  "utteranceSource": { "text": "Find the cactus 🌵, then move two tiles right and two tiles down — the goal is on that tile." },
+  "utteranceSource": { "text": "Find the flower 🌸, then move straight down three tiles — the goal is on that tile." },
   "allowFollowups": false,
   "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
   "seed": 1

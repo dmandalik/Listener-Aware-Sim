@@ -111,8 +111,8 @@ export function Keypad({
             disabled={disabled}
           >
             <span className="letter">{k}</span>
-            {/* Novice sees NO hint about what the key does. */}
-            <span className="dir">{known ? dirArrow(dir!) : ""}</span>
+            {/* Only expert sees the arrow; for a novice the letter stays centered. */}
+            {known && <span className="dir">{dirArrow(dir!)}</span>}
           </button>
         );
       })}
