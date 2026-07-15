@@ -4,7 +4,7 @@
   "keys": { "sceneLabels": "nearby", "partsKey": true, "controlKey": false },
   "viewpoint": "aligned",
   "budget": 20,
-  "timeoutMs": 300000,
+  "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
   "utteranceSource": { "text": "Go up and to the left — the charger is in the supply room in the far corner." },

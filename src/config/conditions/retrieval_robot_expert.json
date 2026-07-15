@@ -4,7 +4,7 @@
   "keys": { "sceneLabels": "all", "partsKey": true, "controlKey": false },
   "viewpoint": "aligned",
   "budget": 20,
-  "timeoutMs": 300000,
+  "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
   "utteranceSource": { "text": "Bring me the charger from the supply room." },

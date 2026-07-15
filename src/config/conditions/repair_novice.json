@@ -4,7 +4,7 @@
   "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": false },
   "viewpoint": "aligned",
   "budget": 4,
-  "timeoutMs": 300000,
+  "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
   "utteranceSource": { "text": "Connect the socket in the bottom-right of the panel to the round gauge up at the top-middle — the one near the top, not the gauge in the bottom-left corner." },

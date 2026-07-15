@@ -8,7 +8,7 @@
   },
   "viewpoint": "aligned",
   "budget": 20,
-  "timeoutMs": 300000,
+  "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
   "utteranceSource": {

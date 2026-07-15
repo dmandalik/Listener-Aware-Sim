@@ -4,7 +4,7 @@
   "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": true },
   "viewpoint": "aligned",
   "budget": 110,
-  "timeoutMs": 300000,
+  "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
   "utteranceSource": { "text": "Head down to the flower 🌸, then move two tiles right and two tiles down — the goal sits between the flower and the car 🚗." },
