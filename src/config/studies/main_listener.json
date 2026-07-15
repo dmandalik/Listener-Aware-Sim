@@ -3,23 +3,8 @@
   "role": "listener",
   "showTrialFeedback": true,
   "trials": [
-    {
-      "condition": "retrieval_facility_mission",
-      "seed": 5001,
-      "target": "c1",
-      "utterance": "Head to the far top-left room and grab the star-shaped part."
-    },
-    {
-      "condition": "retrieval_facility_mission",
-      "seed": 5002,
-      "target": "cam2",
-      "utterance": "Go to the top-right room and pick up the triangle-shaped part."
-    },
-    {
-      "condition": "retrieval_facility_mission",
-      "seed": 5003,
-      "target": "ctrl1",
-      "utterance": "In the tall room in the middle, grab the large filled-circle part near the top."
-    }
+    { "condition": "retrieval_facility_replay", "seed": 5001, "target": "c1" },
+    { "condition": "retrieval_facility_replay", "seed": 5002, "target": "cam2" },
+    { "condition": "retrieval_facility_replay", "seed": 5003, "target": "ctrl1" }
   ]
 }

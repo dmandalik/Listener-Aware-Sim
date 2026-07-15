@@ -7,7 +7,7 @@
 // malformed event fails loudly at the boundary instead of corrupting the record.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { getDb } from "./client";
 import {
   events,
@@ -162,10 +162,13 @@ export interface OpenTrialArgs {
   sessionId: string;
   trialIndex: number;
   taskId: "retrieval" | "repair" | "teleop";
+  scene?: string | null;
+  assignment?: "speaker" | "novice" | "expert" | null;
   seed: number;
   condition: unknown;
   utteranceText?: string | null;
   speakerSessionId?: string | null;
+  speakerPid?: string | null;
   utteranceId?: number | null;
   targetId?: string | null;
   state?: unknown; // server-authoritative engine state
@@ -179,10 +182,13 @@ export async function openTrial(a: OpenTrialArgs): Promise<number> {
       sessionId: a.sessionId,
       trialIndex: a.trialIndex,
       taskId: a.taskId,
+      scene: a.scene ?? null,
+      assignment: a.assignment ?? null,
       seed: a.seed,
       condition: a.condition,
       utteranceText: a.utteranceText ?? null,
       speakerSessionId: a.speakerSessionId ?? null,
+      speakerPid: a.speakerPid ?? null,
       utteranceId: a.utteranceId ?? null,
       targetId: a.targetId ?? null,
       state: a.state ?? null,
@@ -224,34 +230,43 @@ export async function insertUtterance(a: InsertUtteranceArgs): Promise<number> {
 }
 
 /**
- * Pool-assignment draw (§8.3): pick the least-served utterance for a
- * (task, seed, scene) cell so one utterance isn't consumed by a single condition,
- * then atomically bump its served count. Returns null if the pool is empty.
+ * Pool draw for a (task, seed, scene) cell, PER CONDITION (§8.3). Picks the
+ * utterance least-served-to-this-condition, breaking ties at random. Result: each
+ * novice gets a distinct utterance while any remain unused, then the pool spreads
+ * evenly (each utterance served to the same number of novices) — and every
+ * utterance is used. Experts are tracked independently, so the same utterance can
+ * go to one novice AND one expert (the within-utterance comparison, §8).
  */
 export async function drawUtterance(
   taskId: "retrieval" | "repair" | "teleop",
   seed: number,
   scene: string,
+  condition: "novice" | "expert",
 ): Promise<UtteranceRow | null> {
   const db = await getDb();
-  const rows = await db
+  const rows = (await db
     .select()
     .from(utterances)
     .where(
-      and(
-        eq(utterances.taskId, taskId),
-        eq(utterances.seed, seed),
-        eq(utterances.scene, scene),
-      ),
-    )
-    .orderBy(asc(utterances.timesServed), asc(utterances.id));
-  const pick = rows[0] as UtteranceRow | undefined;
-  if (!pick) return null;
+      and(eq(utterances.taskId, taskId), eq(utterances.seed, seed), eq(utterances.scene, scene)),
+    )) as UtteranceRow[];
+  if (rows.length === 0) return null;
+
+  const servedOf = (r: UtteranceRow) => (condition === "novice" ? r.servedNovice : r.servedExpert);
+  const min = Math.min(...rows.map(servedOf));
+  const candidates = rows.filter((r) => servedOf(r) === min);
+  const pick = candidates[Math.floor(Math.random() * candidates.length)]!;
+
   await db
     .update(utterances)
-    .set({ timesServed: pick.timesServed + 1 })
+    .set({
+      timesServed: pick.timesServed + 1,
+      ...(condition === "novice"
+        ? { servedNovice: pick.servedNovice + 1 }
+        : { servedExpert: pick.servedExpert + 1 }),
+    })
     .where(eq(utterances.id, pick.id));
-  return { ...pick, timesServed: pick.timesServed + 1 };
+  return pick;
 }
 
 /** Fold a listener outcome into an utterance's aggregate success (for the bonus). */
@@ -280,6 +295,7 @@ export interface CloseTrialArgs {
   cost: number;
   chosenId: string | null;
   reason: string;
+  durationMs?: number | null;
 }
 
 export async function closeTrial(a: CloseTrialArgs): Promise<void> {
@@ -291,6 +307,7 @@ export async function closeTrial(a: CloseTrialArgs): Promise<void> {
       cost: a.cost,
       chosenId: a.chosenId,
       reason: a.reason,
+      durationMs: a.durationMs ?? null,
       endedAt: new Date(),
     })
     .where(eq(trials.id, a.trialId));

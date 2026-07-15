@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import type { Condition, ListenerView, TaskId } from "@/lib/types";
 import type { EventInput } from "@/lib/events";
-import { loadStudy, type ResolvedTrial } from "@/lib/config";
+import { loadRecruitment, loadStudy, roleForArrival, type ResolvedTrial } from "@/lib/config";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { trials, sessions, utterances } from "@/lib/db/schema";
 import {
@@ -319,12 +319,20 @@ async function openTrialAt(
       utteranceText = cond.utteranceSource.text;
       speakerSessionId = cond.utteranceSource.speakerSessionId ?? "pinned";
     } else {
-      const drawn = await drawUtterance(cond.taskId, cond.seed, cond.scene ?? "");
+      // Which listener condition is drawing (for the distinct-per-condition pool).
+      // The assignment is authoritative; fall back to the condition's own keys.
+      const drawCond: "novice" | "expert" =
+        assignment === "expert" || assignment === "novice"
+          ? assignment
+          : cond.keys.partsKey
+            ? "expert"
+            : "novice";
+      const drawn = await drawUtterance(cond.taskId, cond.seed, cond.scene ?? "", drawCond);
       if (!drawn) {
         // Fail loud (§15): a replay study with an empty pool is a setup error.
         throw new Error(
           `Utterance pool empty for (${cond.taskId}, seed ${cond.seed}, scene "${cond.scene ?? ""}"). ` +
-            `Run the speaker study to populate it before serving replay listeners.`,
+            `Recruit speakers to populate it before serving replay listeners.`,
         );
       }
       utteranceText = drawn.text;
@@ -338,10 +346,13 @@ async function openTrialAt(
     sessionId,
     trialIndex: index,
     taskId: cond.taskId,
+    scene: cond.scene ?? null,
+    assignment,
     seed: cond.seed,
     condition: cond,
     utteranceText,
     speakerSessionId,
+    speakerPid: speakerPid ?? null,
     utteranceId,
     targetId: target,
     state,
@@ -646,6 +657,7 @@ export async function applyListenerAction(args: {
       cost: o.cost,
       chosenId: o.chosenId,
       reason: o.reason,
+      durationMs,
     });
     // Fold this outcome into the replayed utterance's aggregate success (§12 bonus).
     if (row.utteranceId != null) {
@@ -692,6 +704,7 @@ export async function timeoutListenerTrial(args: {
       cost,
       chosenId: null,
       reason: "timeout",
+      durationMs,
     });
     if (row.utteranceId != null) await recordUtteranceOutcome(row.utteranceId, false);
     // Reflect terminality in the stored state too.
@@ -755,6 +768,8 @@ async function openSpeakerTrialAt(
     sessionId,
     trialIndex: index,
     taskId: cond.taskId,
+    scene: cond.scene ?? null,
+    assignment: "speaker",
     seed: cond.seed,
     condition: cond,
     targetId: (state as any).world?.target ?? null,
@@ -840,16 +855,14 @@ export async function advanceSpeakerTrial(sessionId: string): Promise<SpeakerTri
 // ── Balanced role assignment (single entry: /play) ────────────────────────────
 
 /**
- * Balanced randomization: assign to the least-filled cell, breaking ties at
- * random. Guarantees equal speaker/novice/expert counts once participants arrive
- * in multiples of three, while staying as random as balance allows.
+ * The next role, per the recruitment policy (src/config/recruitment.json): the
+ * Kth arrival gets the covering batch's role, cycling. With the default batches
+ * this recruits all speakers first (so the pool is full before any listener).
  */
-async function pickBalancedAssignment(): Promise<Assignment> {
+async function pickAssignment(): Promise<Assignment> {
   const counts = await countAssignments();
-  const cells: Assignment[] = ["speaker", "novice", "expert"];
-  const min = Math.min(...cells.map((c) => counts[c]));
-  const candidates = cells.filter((c) => counts[c] === min);
-  return candidates[Math.floor(Math.random() * candidates.length)]!;
+  const total = counts.speaker + counts.novice + counts.expert;
+  return roleForArrival(loadRecruitment(), total);
 }
 
 export interface AssignResult {
@@ -863,7 +876,7 @@ export async function assignAndStart(args: {
   userAgent?: string;
 }): Promise<AssignResult> {
   await ready();
-  const assignment = await pickBalancedAssignment();
+  const assignment = await pickAssignment();
   if (assignment === "speaker") {
     const p = await startSpeakerSession({
       studyName: "main_speaker",

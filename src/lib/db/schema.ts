@@ -82,10 +82,14 @@ export const trials = pgTable(
     taskId: text("task_id", {
       enum: ["retrieval", "repair", "teleop"],
     }).notNull(),
+    // Denormalized for easy flat export / grouping (all also derivable elsewhere).
+    scene: text("scene"),
+    assignment: text("assignment", { enum: ["speaker", "novice", "expert"] }),
     seed: integer("seed").notNull(),
     condition: jsonb("condition").notNull(), // the full Condition snapshot
     utteranceText: text("utterance_text"),
-    speakerSessionId: text("speaker_session_id"), // set when the utterance was replayed
+    speakerSessionId: text("speaker_session_id"), // author session (replay)
+    speakerPid: text("speaker_pid"), // author Prolific pid (replay)
     utteranceId: integer("utterance_id"), // pool row served to this trial (replay)
     // Server-authoritative engine state between actions. A recomputable cache of
     // the event log (§12): the client NEVER sees this — it holds the full world,
@@ -93,7 +97,8 @@ export const trials = pgTable(
     state: jsonb("state"),
     // Outcome (null until the trial ends).
     correct: boolean("correct"),
-    cost: integer("cost"),
+    cost: integer("cost"), // moves/keypresses/clicks taken
+    durationMs: bigint("duration_ms", { mode: "number" }), // time to finish
     targetId: text("target_id"),
     chosenId: text("chosen_id"),
     reason: text("reason"),
@@ -146,8 +151,12 @@ export const utterances = pgTable(
     // Authorship / traceability.
     authorSessionId: text("author_session_id").notNull(),
     authorPid: text("author_pid"),
-    // Pool-assignment bookkeeping (§8.3).
+    // Pool-assignment bookkeeping (§8.3). Per-condition counts drive the
+    // distinct-per-condition draw (each utterance spread evenly across novices,
+    // and separately across experts).
     timesServed: integer("times_served").notNull().default(0),
+    servedNovice: integer("served_novice").notNull().default(0),
+    servedExpert: integer("served_expert").notNull().default(0),
     // Running aggregate of downstream listener success (for the speaker bonus, §12).
     listenerSuccesses: integer("listener_successes").notNull().default(0),
     listenerTrials: integer("listener_trials").notNull().default(0),

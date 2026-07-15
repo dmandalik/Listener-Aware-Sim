@@ -223,6 +223,60 @@ export function loadTeleopMap(name: string): TeleopMap {
   return parseTeleopMap(raw, name);
 }
 
+// ── Recruitment policy (which role the next participant gets) ─────────────────
+// Ordered batches; the Kth arrival (within a cycle) gets the covering batch's
+// role, then the pattern repeats. Editing src/config/recruitment.json is the ONE
+// place to change how speakers/novices/experts are recruited.
+
+export const zRecruitment = z.object({
+  batches: z
+    .array(
+      z.object({
+        role: z.enum(["speaker", "novice", "expert"]),
+        count: z.number().int().positive(),
+      }),
+    )
+    .min(1),
+});
+
+export type Recruitment = z.infer<typeof zRecruitment>;
+
+export function loadRecruitment(): Recruitment {
+  const file = join(CONFIG_ROOT, "recruitment.json");
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    throw new Error(`Cannot read recruitment.json: ${(err as Error).message}`);
+  }
+  const parsed = zRecruitment.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid recruitment.json:\n` +
+        parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n"),
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * Which role the next participant should get, given how many have been assigned
+ * so far. Pure & deterministic: role is decided by arrival position within the
+ * repeating batch cycle.
+ */
+export function roleForArrival(
+  recruitment: Recruitment,
+  totalAssigned: number,
+): "speaker" | "novice" | "expert" {
+  const cycle = recruitment.batches.reduce((n, b) => n + b.count, 0);
+  let pos = totalAssigned % cycle;
+  for (const b of recruitment.batches) {
+    if (pos < b.count) return b.role;
+    pos -= b.count;
+  }
+  return recruitment.batches[0]!.role; // unreachable
+}
+
 // ── Repair diagram (§5) ──────────────────────────────────────────────────────
 // A 2-D robot diagram: components at fixed positions the listener clicks. Two (or
 // more) components deliberately share a `shape` (the visual trap) so a bare visual

@@ -1,0 +1,8 @@
+{
+  "_comment": "Ordered recruitment batches. The Kth participant (by arrival) gets the role of the batch covering position K within one cycle; once a full cycle is recruited it repeats (§ 'alternating in bulk'). Edit the counts freely. Keep novice == expert so every utterance is served equally to both.",
+  "batches": [
+    { "role": "speaker", "count": 5 },
+    { "role": "novice", "count": 10 },
+    { "role": "expert", "count": 10 }
+  ]
+}

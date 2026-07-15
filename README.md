@@ -133,14 +133,50 @@ scripts/
 - [ ] M7 — `/admin` dashboard + exports (CSV/JSONL, bonus CSV, replay viewer)
 - [ ] M8 — Deploy to free tier + 5-person pilot
 
-## Participant entry & assignment
+## Participant entry, recruitment & the utterance pool
 
-Participants enter at **`/play`**. On start they are **randomly assigned** (balanced —
-always the least-filled cell, random tie-break) to **speaker**, **novice**, or
-**expert**, and that assignment is **fixed for all 3 missions** and stored on the
-session (`sessions.assignment`). Counts stay equal — after every 3 participants
-it's exactly 1/1/1. `/play` routes to the matching flow (`/speaker` or `/listener`)
-with the started session.
+Participants enter at **`/play`** and are assigned a role that is **fixed for all 3
+missions** (stored on `sessions.assignment`). Recruitment is **phased and config-
+driven** via [`src/config/recruitment.json`](src/config/recruitment.json) — the one
+file to edit:
+
+```json
+{ "batches": [
+    { "role": "speaker", "count": 5 },
+    { "role": "novice",  "count": 10 },
+    { "role": "expert",  "count": 10 } ] }
+```
+
+The Kth arrival gets the covering batch's role, then the pattern **cycles**. With the
+defaults, the first 5 are **speakers** (so the pool is full before any listener), then
+10 novices, then 10 experts. Keep `novice == expert`.
+
+**Utterance pool.** Speakers author one utterance per scene → the pool. Listeners
+**replay** from it: the draw is **least-served-per-condition, random tie-break**, so
+each novice gets a distinct utterance while any remain unused, then the pool spreads
+**evenly** (each utterance served to the same number of novices), and **every
+utterance is used**. Novice and expert serve-counts are independent, so the *same*
+utterance goes to a novice and an expert (within-utterance comparison, §8).
+
+Roles map to studies: speaker → `main_speaker`, novice/expert → `main_listener`
+(replay). Verify the whole pipeline (recruitment order, even draw, complete record):
+**`npm run verify:recruitment`**.
+
+## Data collection
+
+Everything needed for analysis is committed as it happens:
+
+- **`participants`** — prolific pid / study / session, role, consent + completion times, UA.
+- **`sessions`** — one per run: `assignment`, plan, status, start/end.
+- **`trials`** — one per mission, flat & query-ready: `taskId`, `scene`, `assignment`,
+  `seed`, full `condition`, `target`, served `utterance_text` + `utterance_id` +
+  `speaker_session_id` + `speaker_pid` (replay provenance), and the outcome:
+  `correct`, `cost` (moves/keypresses/clicks), **`duration_ms`** (time-to-finish),
+  `chosen_id`, `reason`.
+- **`events`** — the append-only firehose: every move/keypress/click/connect with
+  timestamps, `resolved`, `budget_left`, position; scoped by `trial_index`.
+- **`utterances`** — the pool: text, author, `served_novice` / `served_expert`,
+  aggregate listener success (speaker bonus).
 
 - **Novice** — fog + no parts key; a room's **label appears as you enter it** (only
   the room you're standing in) and updates as you move.
