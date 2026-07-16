@@ -51,14 +51,13 @@ is dev-only and ignored in production.
 
 Neon's free tier **autosuspends** after inactivity, adding a ~0.5 s cold start to the
 first request. A health endpoint at **`/api/health`** does a cheap DB round-trip to
-wake it. Two ways to ping it every ~5 minutes:
+wake it. Ping it every ~5 minutes:
 
-- **Vercel Cron** (needs Vercel **Pro** for sub-daily schedules): already wired in
-  `vercel.json` (`*/5 * * * *` → `/api/health`). On the **Hobby** tier remove the
-  `crons` block (Hobby only runs crons once/day) and use the option below.
-- **Free external pinger** (any tier): point [UptimeRobot](https://uptimerobot.com)
-  or [cron-job.org](https://cron-job.org) at `https://<your-app>.vercel.app/api/health`
-  every 5 minutes.
+- **Free external pinger** (recommended on Vercel Hobby): point
+  [UptimeRobot](https://uptimerobot.com) or [cron-job.org](https://cron-job.org) at
+  `https://<your-app>.vercel.app/api/health` every 5 minutes.
+- **Vercel Cron** (Vercel **Pro** only — Hobby caps crons at once/day): add a
+  `vercel.json` with `{ "crons": [{ "path": "/api/health", "schedule": "*/5 * * * *" }] }`.
 
 Skipping keep-warm is fine — participants just occasionally wait ~0.5 s on first load.
 
