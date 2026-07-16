@@ -239,7 +239,82 @@ async function getAuthored(): Promise<any[]> {
   }));
 }
 
+/** THE single training file: one denormalized row per listener response, joining
+ *  the utterance + its context (task/layout/scene/target) + author (name) + the
+ *  listener (name/role) + outcome (correct/moves/time). Every authored utterance
+ *  appears at least once — with blank listener/outcome fields until someone acts
+ *  on it — so nothing relevant is ever split across files. */
+async function getDataset(): Promise<any[]> {
+  const db = await getDb();
+  const [us, ts, ss, parts] = (await Promise.all([
+    db.select().from(utterances),
+    db.select().from(trials),
+    db.select().from(sessions),
+    db.select().from(participants),
+  ])) as [any[], any[], any[], any[]];
+  const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
+  const pidBySession = new Map<string, string>(ss.map((s: any) => [s.id, s.prolificPid]));
+  // listener trials grouped by the utterance they replayed
+  const byUtterance = new Map<number, any[]>();
+  for (const t of ts) {
+    if ((t.assignment === "novice" || t.assignment === "expert") && t.utteranceId != null) {
+      const arr = byUtterance.get(t.utteranceId) ?? [];
+      arr.push(t);
+      byUtterance.set(t.utteranceId, arr);
+    }
+  }
+  const rows: any[] = [];
+  for (const u of us) {
+    const base = {
+      utteranceId: u.id,
+      taskId: u.taskId,
+      layout: u.layout,
+      scene: u.scene,
+      seed: u.seed,
+      utterance: u.text,
+      authorPid: u.authorPid,
+      authorName: u.authorPid ? nameByPid.get(u.authorPid) ?? null : null,
+      timesServed: u.timesServed,
+      completedNovice: u.completedNovice,
+      completedExpert: u.completedExpert,
+      listenerSuccesses: u.listenerSuccesses,
+      listenerTrials: u.listenerTrials,
+      successRate: u.successRate,
+      authoredAt: u.createdAt,
+    };
+    const lts = byUtterance.get(u.id) ?? [];
+    if (lts.length === 0) {
+      rows.push({
+        ...base,
+        listenerTrialId: null, listenerPid: null, listenerName: null, listenerRole: null,
+        targetId: null, correct: null, moves: null, durationMs: null, chosenId: null,
+        reason: null, listenedAt: null,
+      });
+    } else {
+      for (const t of lts) {
+        const pid = pidBySession.get(t.sessionId) ?? null;
+        rows.push({
+          ...base,
+          listenerTrialId: t.id,
+          listenerPid: pid,
+          listenerName: pid ? nameByPid.get(pid) ?? null : null,
+          listenerRole: t.assignment,
+          targetId: t.targetId,
+          correct: t.correct,
+          moves: t.cost,
+          durationMs: t.durationMs,
+          chosenId: t.chosenId,
+          reason: t.reason,
+          listenedAt: t.endedAt,
+        });
+      }
+    }
+  }
+  return rows;
+}
+
 const VIEWS: Record<string, () => Promise<any[]>> = {
+  dataset: getDataset,
   roster: getRoster,
   results: getResults,
   authored: getAuthored,
@@ -247,6 +322,7 @@ const VIEWS: Record<string, () => Promise<any[]>> = {
 
 export type ExportName = TableName | keyof typeof VIEWS;
 export const EXPORT_NAMES: ExportName[] = [
+  "dataset",
   "results",
   "roster",
   "authored",
