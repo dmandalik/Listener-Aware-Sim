@@ -134,9 +134,132 @@ export function toJsonl(rows: any[]): string {
   return rows.map((r) => JSON.stringify(r)).join("\n");
 }
 
-export async function exportTable(table: TableName, format: "csv" | "jsonl"): Promise<string> {
+// ── Clean joined "views" for analysis (no state/condition blobs) ──────────────
+// These flatten just the useful columns across tables so you get one tidy CSV per
+// concern instead of raw dumps. Exposed through the same export endpoint.
+
+/** One row per participant: who they are, their role, and how far they got. */
+async function getRoster(): Promise<any[]> {
+  const db = await getDb();
+  const [parts, ss, ts] = (await Promise.all([
+    db.select().from(participants),
+    db.select().from(sessions),
+    db.select().from(trials),
+  ])) as [any[], any[], any[]];
+  const sessByPid = new Map<string, any>(ss.map((s: any) => [s.prolificPid, s]));
+  const pidBySession = new Map<string, string>(ss.map((s: any) => [s.id, s.prolificPid]));
+  const nTrials = new Map<string, number>();
+  const nDone = new Map<string, number>();
+  for (const t of ts) {
+    const pid = pidBySession.get(t.sessionId);
+    if (!pid) continue;
+    nTrials.set(pid, (nTrials.get(pid) ?? 0) + 1);
+    if (t.endedAt) nDone.set(pid, (nDone.get(pid) ?? 0) + 1);
+  }
+  return parts.map((p) => {
+    const s = sessByPid.get(p.prolificPid);
+    return {
+      prolificPid: p.prolificPid,
+      name: p.name,
+      role: (s?.assignment ?? p.role) as string | null, // novice | expert | speaker
+      variant: s?.variant ?? null,
+      status: s?.status ?? null,
+      trials: nTrials.get(p.prolificPid) ?? 0,
+      trialsCompleted: nDone.get(p.prolificPid) ?? 0,
+      consentedAt: p.consentedAt,
+      completedAt: p.completedAt,
+    };
+  });
+}
+
+/** One row per LISTENER trial — the core training/analysis record: who listened,
+ *  their role, the utterance they got + who authored it, and their outcome
+ *  (success, moves, time). Empty until listeners actually play. */
+async function getResults(): Promise<any[]> {
+  const db = await getDb();
+  const [ts, ss, parts] = (await Promise.all([
+    db.select().from(trials),
+    db.select().from(sessions),
+    db.select().from(participants),
+  ])) as [any[], any[], any[]];
+  const pidBySession = new Map<string, string>(ss.map((s: any) => [s.id, s.prolificPid]));
+  const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
+  return ts
+    .filter((t: any) => t.assignment === "novice" || t.assignment === "expert")
+    .map((t: any) => {
+      const pid = pidBySession.get(t.sessionId) ?? null;
+      return {
+        trialId: t.id,
+        listenerPid: pid,
+        listenerName: pid ? nameByPid.get(pid) ?? null : null,
+        role: t.assignment, // novice | expert
+        taskId: t.taskId,
+        layout: t.layout,
+        scene: t.scene,
+        utterance: t.utteranceText,
+        authorPid: t.speakerPid,
+        authorName: t.speakerPid ? nameByPid.get(t.speakerPid) ?? null : null,
+        correct: t.correct,
+        moves: t.cost,
+        durationMs: t.durationMs,
+        targetId: t.targetId,
+        chosenId: t.chosenId,
+        reason: t.reason,
+        startedAt: t.startedAt,
+        endedAt: t.endedAt,
+      };
+    });
+}
+
+/** One row per authored utterance (speaker side) with the author's name and pool
+ *  stats — same as the raw `utterances` table but with `authorName` joined in. */
+async function getAuthored(): Promise<any[]> {
+  const db = await getDb();
+  const [us, parts] = (await Promise.all([
+    db.select().from(utterances),
+    db.select().from(participants),
+  ])) as [any[], any[]];
+  const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
+  return us.map((u: any) => ({
+    id: u.id,
+    taskId: u.taskId,
+    layout: u.layout,
+    scene: u.scene,
+    seed: u.seed,
+    text: u.text,
+    authorPid: u.authorPid,
+    authorName: u.authorPid ? nameByPid.get(u.authorPid) ?? null : null,
+    timesServed: u.timesServed,
+    completedNovice: u.completedNovice,
+    completedExpert: u.completedExpert,
+    listenerSuccesses: u.listenerSuccesses,
+    listenerTrials: u.listenerTrials,
+    successRate: u.successRate,
+    createdAt: u.createdAt,
+  }));
+}
+
+const VIEWS: Record<string, () => Promise<any[]>> = {
+  roster: getRoster,
+  results: getResults,
+  authored: getAuthored,
+};
+
+export type ExportName = TableName | keyof typeof VIEWS;
+export const EXPORT_NAMES: ExportName[] = [
+  "results",
+  "roster",
+  "authored",
+  "events",
+  "trials",
+  "sessions",
+  "participants",
+  "utterances",
+];
+
+export async function exportTable(table: ExportName, format: "csv" | "jsonl"): Promise<string> {
   await ensureMigrated();
-  const rows = await all(table);
+  const rows = table in VIEWS ? await VIEWS[table]!() : await all(table as TableName);
   return format === "csv" ? toCsv(rows) : toJsonl(rows);
 }
 
