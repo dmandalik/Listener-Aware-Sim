@@ -149,12 +149,10 @@ export default function Entry() {
       <>
         <div className="eyebrow">Thanks for your time</div>
         <h1 style={{ margin: "6px 0 10px", fontSize: 24 }}>You’ve chosen not to continue.</h1>
-        <p style={{ color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 20 }}>
-          No problem — you can return to Prolific now.
+        <p style={{ color: "var(--ink-soft)", lineHeight: 1.5 }}>
+          No problem — you have not started the study and nothing has been recorded. You can close this
+          tab now.
         </p>
-        <a className="btn" href={cfg?.screenoutUrl ?? "#"} style={{ display: "inline-block", textDecoration: "none" }}>
-          Return to Prolific
-        </a>
       </>,
     );
   }
@@ -179,7 +177,7 @@ export default function Entry() {
             <button className="btn" onClick={agree}>
               {cfg.consent.agreeLabel}
             </button>
-            <a className="btn ghost" href={cfg.screenoutUrl} style={{ textDecoration: "none" }}>{cfg.consent.declineLabel}</a>
+            <button className="btn ghost" onClick={() => setStep("screened")}>{cfg.consent.declineLabel}</button>
           </div>
         </div>
       </main>
