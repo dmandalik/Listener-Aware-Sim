@@ -32,33 +32,6 @@ export const moveOnlyBot: BotPolicy<RetrievalState, RetrievalAction> = ({
 };
 
 /**
- * BFS over passable cells from the listener's position to a specific target cell;
- * returns the world-frame direction of the first step.
- */
-function stepTowardCell(s: RetrievalState, target: [number, number]): Dir | null {
-  const { geom } = s.world;
-  const start: [number, number] = s.pos;
-  const key = (c: number, r: number) => `${c},${r}`;
-  const seen = new Set<string>([key(start[0], start[1])]);
-  const queue: Array<[number, number, Dir | null]> = [[start[0], start[1], null]];
-  while (queue.length) {
-    const [c, r, firstDir] = queue.shift()!;
-    if (c === target[0] && r === target[1] && firstDir) return firstDir;
-    for (const dir of ["up", "down", "left", "right"] as Dir[]) {
-      const [dx, dy] = DELTA[dir];
-      const nc = c + dx;
-      const nr = r + dy;
-      if (nr < 0 || nr >= geom.height || nc < 0 || nc >= geom.width) continue;
-      if (geom.cells[nr]![nc] === "wall") continue;
-      if (seen.has(key(nc, nr))) continue;
-      seen.add(key(nc, nr));
-      queue.push([nc, nr, firstDir ?? dir]);
-    }
-  }
-  return null;
-}
-
-/**
  * BFS over passable cells from the listener's position to the nearest cell of the
  * target's room; returns the world-frame direction of the first step.
  */
@@ -90,9 +63,16 @@ export const oracleRetrievalBot: BotPolicy<RetrievalState, RetrievalAction> = ({
   state,
 }) => {
   const target = state.world.objects.find((o) => o.id === state.world.target)!;
-  // Walk onto the target's tile — that is how retrieval collects now (no pick).
-  const worldDir = stepTowardCell(state, target.pos) ?? stepTowardRoom(state, target.room);
-  if (!worldDir) return { type: "move", dir: "up" }; // unreachable fallback
+  // In the target's room → click it. Otherwise path toward that room.
+  if (state.room === target.room) {
+    return { type: "pick", objectId: target.id };
+  }
+  const worldDir = stepTowardRoom(state, target.room);
+  if (!worldDir) {
+    // Unreachable (shouldn't happen on a valid map) — commit to end the trial.
+    const here = state.world.objects.find((o) => o.room === state.room);
+    return here ? { type: "pick", objectId: here.id } : { type: "move", dir: "up" };
+  }
   // The listener issues screen-frame dirs; resolveDir is an involution for 180°,
   // so emitting resolveDir(worldDir) makes apply() resolve back to worldDir.
   return { type: "move", dir: resolveDir(worldDir, state.cond.viewpoint) };

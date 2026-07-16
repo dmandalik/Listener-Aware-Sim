@@ -101,29 +101,33 @@ export function GameBoard({
 
       {/* objects. Listener: current-room only, clickable. Speaker: all, target
           ringed, not clickable. */}
-      {objects.map((o) => (
-        <div
-          key={o.id}
-          className={`cell reveal${o.isTarget ? " is-target" : ""}`}
-          style={{
-            position: "absolute",
-            left: o.pos[0] * CELL,
-            top: o.pos[1] * CELL,
-            width: CELL,
-            height: CELL,
-          }}
-          title={o.part}
-        >
-          <span
-            className="symbol"
-            title={onPick && !disabled ? "Pick this up" : o.part}
-            onClick={() => onPick && !disabled && onPick(o.id)}
-            style={{ cursor: onPick && !disabled ? "pointer" : "default" }}
+      {objects.map((o) => {
+        const pickable = !!onPick && !disabled;
+        return (
+          <div
+            key={o.id}
+            className={`cell reveal${o.isTarget ? " is-target" : ""}${pickable ? " pickable" : ""}`}
+            style={{
+              position: "absolute",
+              left: o.pos[0] * CELL,
+              top: o.pos[1] * CELL,
+              width: CELL,
+              height: CELL,
+            }}
+            title={pickable ? "Click to pick this up" : o.part}
+            onClick={() => pickable && onPick!(o.id)}
           >
-            {o.symbol}
-          </span>
-        </div>
-      ))}
+            <span
+              className="symbol"
+              title={pickable ? "Click to pick this up" : o.part}
+              onClick={() => pickable && onPick!(o.id)}
+              style={{ cursor: pickable ? "pointer" : "default" }}
+            >
+              {o.symbol}
+            </span>
+          </div>
+        );
+      })}
 
       {/* the listener token (absent for the speaker) */}
       {pos && (

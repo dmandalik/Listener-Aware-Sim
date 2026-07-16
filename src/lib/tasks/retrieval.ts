@@ -26,9 +26,9 @@ import { DELTA, resolveDir, type Dir } from "@/lib/engine/viewpoint";
 
 const DEFAULT_SCENE = "retrieval_6room";
 
-// Collection is by MOVEMENT: stepping onto the target's tile wins; stepping onto a
-// wrong object's tile spends one attempt. After this many wrong attempts, the trial
-// fails. (There is no click-to-pick.)
+// You collect an object by CLICKING it (it must be in your current room). Clicking
+// the target wins; clicking a wrong object spends one attempt. After this many wrong
+// attempts, the trial fails.
 const MAX_ATTEMPTS = 3;
 
 // ── In-memory map registry ───────────────────────────────────────────────────
@@ -170,8 +170,9 @@ export interface RetrievalState {
   lastResolved: Dir | null; // world dir of the last move (for the event log)
 }
 
-// Movement is the only action: you collect an object by walking onto its tile.
-export type RetrievalAction = { type: "move"; dir: Dir }; // dir is in the LISTENER frame
+export type RetrievalAction =
+  | { type: "move"; dir: Dir } // dir is in the LISTENER frame
+  | { type: "pick"; objectId: string }; // click an object in the current room
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -375,11 +376,39 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
       if (geom.cells[nr]![nc] === "wall") continue;
       actions.push({ type: "move", dir });
     }
+    // Picks: any object in the current room (click to collect).
+    for (const o of objectsInRoom(s.world, s.room)) {
+      actions.push({ type: "pick", objectId: o.id });
+    }
     return actions;
   },
 
   apply(s: RetrievalState, a: RetrievalAction): RetrievalState {
     if (s.terminal) throw new Error("retrieval.apply: trial already terminal");
+
+    if (a.type === "pick") {
+      const inRoom = objectsInRoom(s.world, s.room).some((o) => o.id === a.objectId);
+      if (!inRoom) {
+        throw new Error(
+          `retrieval.apply: cannot pick "${a.objectId}" — not in current room "${s.room}"`,
+        );
+      }
+      if (a.objectId === s.world.target) {
+        return { ...s, terminal: true, chosenId: a.objectId, reason: "correct", lastWrong: null, lastResolved: null };
+      }
+      // Wrong object → one attempt spent. Out of attempts ends the trial.
+      const mistakes = s.mistakes + 1;
+      const out = mistakes >= MAX_ATTEMPTS;
+      return {
+        ...s,
+        mistakes,
+        lastWrong: a.objectId,
+        terminal: out,
+        chosenId: out ? a.objectId : s.chosenId,
+        reason: out ? "out_of_attempts" : s.reason,
+        lastResolved: null,
+      };
+    }
 
     // move
     const world = resolveDir(a.dir, s.cond.viewpoint);
@@ -415,27 +444,6 @@ export const retrievalTask: Task<RetrievalState, RetrievalAction> = {
         ? Array.from(new Set([...s.revealed, ...objectsInRoom(s.world, cellRoom!).map((o) => o.id)]))
         : s.revealed,
     };
-
-    // Collection by movement: did we step onto an object's tile?
-    const objHere = s.world.objects.find((o) => o.pos[0] === nc && o.pos[1] === nr);
-    if (objHere && objHere.id === s.world.target) {
-      // Stepping onto the target wins — even if this move also emptied the budget.
-      next.terminal = true;
-      next.chosenId = objHere.id;
-      next.reason = "correct";
-      return next;
-    }
-    if (objHere) {
-      // Wrong object → one attempt spent. Out of attempts ends the trial.
-      next.mistakes = s.mistakes + 1;
-      next.lastWrong = objHere.id;
-      if (next.mistakes >= MAX_ATTEMPTS) {
-        next.terminal = true;
-        next.chosenId = objHere.id;
-        next.reason = "out_of_attempts";
-        return next;
-      }
-    }
 
     if (budgetLeft <= 0) {
       next.terminal = true;
@@ -475,32 +483,35 @@ export const retrievalAdapter: TaskEventAdapter<RetrievalState, RetrievalAction>
   },
   onAction(a, before, after, sid) {
     const evs: EventInput[] = [];
-    // Movement is the only action; label it with what stepping there did (walked,
-    // collected the target, or spent an attempt on a wrong object).
-    const objId = after.chosenId ?? after.lastWrong;
-    const action =
-      after.reason === "correct"
-        ? `COLLECT:${objId}`
-        : after.reason === "out_of_attempts"
-          ? `WRONG:${objId}`
-          : after.lastWrong
-            ? `WRONG:${after.lastWrong}`
-            : `MOVE_${a.dir.toUpperCase()}`;
-    evs.push({
-      ev: "listener_action",
-      sid,
-      action,
-      resolved: after.lastResolved,
-      budgetLeft: after.budgetLeft,
-      pos: after.pos,
-      room: after.room,
-    });
-    if (after.room !== before.room) {
+    if (a.type === "move") {
       evs.push({
-        ev: "room_entered",
+        ev: "listener_action",
         sid,
+        action: `MOVE_${a.dir.toUpperCase()}`,
+        resolved: after.lastResolved, // world dir after the viewpoint transform
+        budgetLeft: after.budgetLeft,
+        pos: after.pos,
         room: after.room,
-        objectsRevealed: objectsInRoom(after.world, after.room).map((o) => o.id),
+      });
+      if (after.room !== before.room) {
+        evs.push({
+          ev: "room_entered",
+          sid,
+          room: after.room,
+          objectsRevealed: objectsInRoom(after.world, after.room).map((o) => o.id),
+        });
+      }
+    } else {
+      // pick: mark whether it collected the target or spent an attempt on a wrong one.
+      const result = after.reason === "correct" ? "COLLECT" : "WRONG";
+      evs.push({
+        ev: "listener_action",
+        sid,
+        action: `${result}:${a.objectId}`,
+        resolved: null,
+        budgetLeft: after.budgetLeft,
+        pos: after.pos,
+        room: after.room,
       });
     }
     return evs;

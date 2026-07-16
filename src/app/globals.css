@@ -289,6 +289,38 @@ button {
   animation: reveal 180ms ease both;
 }
 
+/* Listener's clickable parts — a pulsing accent ring so it's obvious you pick a
+   part up by clicking it (retrieval collects by click, not by walking). */
+.cell.reveal.pickable {
+  cursor: pointer;
+}
+.cell.reveal.pickable::after {
+  content: "";
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: pick-pulse 1.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+.cell.reveal.pickable:hover::after {
+  animation: none;
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+@keyframes pick-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.88);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
+
 /* Speaker's target highlight — a gold ring. Speaker view only (the listener
    never receives isTarget). */
 .cell.is-target::before {

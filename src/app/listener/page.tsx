@@ -92,8 +92,8 @@ function taskGuide(taskId: string, isExpert: boolean): { steps: React.ReactNode[
         </>
       ),
       <>
-        Move with the <strong>arrow keys or WASD</strong> and <strong>walk onto the item</strong> the message means
-        to grab it. <strong>You get 3 tries</strong> — stepping onto a wrong part costs one.
+        Move with the <strong>arrow keys or WASD</strong> to explore. When you find the item the message means,{" "}
+        <strong>click it to pick it up</strong>. <strong>You get 3 tries</strong> — a wrong pick costs one.
       </>,
     ],
   };
@@ -213,7 +213,7 @@ export default function ListenerPage() {
   );
 
   const move = useCallback((dir: string) => send({ type: "move", dir }), [send]);
-  // Retrieval has no pick action — you collect by walking onto the object's tile.
+  const pick = useCallback((objectId: string) => send({ type: "pick", objectId }), [send]);
   const pressKey = useCallback((key: string) => send({ type: "key", key }), [send]);
   const connectParts = useCallback((from: string, to: string) => send({ type: "connect", from, to }), [send]);
 
@@ -493,7 +493,7 @@ export default function ListenerPage() {
                 />
               </>
             ) : (
-              <GameBoard world={world} disabled={phase !== "playing"} />
+              <GameBoard world={world} onPick={pick} disabled={phase !== "playing"} />
             )}
           </div>
 
@@ -561,7 +561,7 @@ export default function ListenerPage() {
                   <h4>Attempts left</h4>
                   <div className="row" style={{ alignItems: "baseline" }}>
                     <b style={{ fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{world.attemptsLeft ?? 3}</b>
-                    <span className="name">walk onto the right part to win</span>
+                    <span className="name">click the right part to win</span>
                   </div>
                   {world.lastWrong && (
                     <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--alert)" }}>
