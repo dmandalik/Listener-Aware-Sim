@@ -137,6 +137,17 @@ export function toJsonl(rows: any[]): string {
 // ── Clean joined "views" for analysis (no state/condition blobs) ──────────────
 // These flatten just the useful columns across tables so you get one tidy CSV per
 // concern instead of raw dumps. Exposed through the same export endpoint.
+//
+// COMPLETE-ONLY: a session counts as complete once the participant submits the END
+// survey (its NASA-TLX is filled). Every analysis view below (results/authored/
+// dataset/survey) includes ONLY complete sessions, so incomplete/abandoned runs can
+// never enter analysis. `roster` keeps everyone but flags who completed.
+
+/** Session ids whose end-of-study survey was submitted (NASA-TLX present). */
+async function completeSessionIds(db: any): Promise<Set<string>> {
+  const svs = (await db.select().from(surveys)) as any[];
+  return new Set<string>(svs.filter((s: any) => s.tlxMental != null).map((s: any) => s.sessionId));
+}
 
 /** One row per participant: who they are, their role, and how far they got. */
 async function getRoster(): Promise<any[]> {
@@ -146,6 +157,7 @@ async function getRoster(): Promise<any[]> {
     db.select().from(sessions),
     db.select().from(trials),
   ])) as [any[], any[], any[]];
+  const complete = await completeSessionIds(db);
   const sessByPid = new Map<string, any>(ss.map((s: any) => [s.prolificPid, s]));
   const pidBySession = new Map<string, string>(ss.map((s: any) => [s.id, s.prolificPid]));
   const nTrials = new Map<string, number>();
@@ -165,6 +177,9 @@ async function getRoster(): Promise<any[]> {
       lastName: p.lastName,
       role: (s?.assignment ?? p.role) as string | null, // novice | expert | speaker
       variant: s?.variant ?? null,
+      // Did they finish the WHOLE study (games + end survey)? Only complete rows
+      // feed the analysis exports.
+      completed: s ? complete.has(s.id) : false,
       status: s?.status ?? null,
       trials: nTrials.get(p.prolificPid) ?? 0,
       trialsCompleted: nDone.get(p.prolificPid) ?? 0,
@@ -184,10 +199,11 @@ async function getResults(): Promise<any[]> {
     db.select().from(sessions),
     db.select().from(participants),
   ])) as [any[], any[], any[]];
+  const complete = await completeSessionIds(db);
   const pidBySession = new Map<string, string>(ss.map((s: any) => [s.id, s.prolificPid]));
   const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
   return ts
-    .filter((t: any) => t.assignment === "novice" || t.assignment === "expert")
+    .filter((t: any) => (t.assignment === "novice" || t.assignment === "expert") && complete.has(t.sessionId))
     .map((t: any) => {
       const pid = pidBySession.get(t.sessionId) ?? null;
       return {
@@ -221,8 +237,11 @@ async function getAuthored(): Promise<any[]> {
     db.select().from(utterances),
     db.select().from(participants),
   ])) as [any[], any[]];
+  const complete = await completeSessionIds(db);
   const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
-  return us.map((u: any) => ({
+  return us
+    .filter((u: any) => complete.has(u.authorSessionId))
+    .map((u: any) => ({
     id: u.id,
     taskId: u.taskId,
     layout: u.layout,
@@ -255,12 +274,13 @@ async function getDataset(): Promise<any[]> {
     db.select().from(sessions),
     db.select().from(participants),
   ])) as [any[], any[], any[], any[]];
+  const complete = await completeSessionIds(db);
   const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
   const pidBySession = new Map<string, string>(ss.map((s: any) => [s.id, s.prolificPid]));
-  // listener trials grouped by the utterance they replayed
+  // listener trials grouped by the utterance they replayed (complete listeners only)
   const byUtterance = new Map<number, any[]>();
   for (const t of ts) {
-    if ((t.assignment === "novice" || t.assignment === "expert") && t.utteranceId != null) {
+    if ((t.assignment === "novice" || t.assignment === "expert") && t.utteranceId != null && complete.has(t.sessionId)) {
       const arr = byUtterance.get(t.utteranceId) ?? [];
       arr.push(t);
       byUtterance.set(t.utteranceId, arr);
@@ -268,6 +288,8 @@ async function getDataset(): Promise<any[]> {
   }
   const rows: any[] = [];
   for (const u of us) {
+    // Only utterances from speakers who finished the whole study.
+    if (!complete.has(u.authorSessionId)) continue;
     const base = {
       utteranceId: u.id,
       taskId: u.taskId,
@@ -326,7 +348,9 @@ async function getSurvey(): Promise<any[]> {
     db.select().from(participants),
   ])) as [any[], any[]];
   const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
-  return svs.map((s: any) => {
+  // Only submitted (complete) end surveys — a row with demographics but no TLX means
+  // the participant abandoned before finishing.
+  return svs.filter((s: any) => s.tlxMental != null).map((s: any) => {
     const tlxVals = [s.tlxMental, s.tlxPhysical, s.tlxTemporal, s.tlxPerformance, s.tlxEffort, s.tlxFrustration].filter(
       (v) => v != null,
     ) as number[];
