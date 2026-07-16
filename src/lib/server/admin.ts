@@ -161,6 +161,8 @@ async function getRoster(): Promise<any[]> {
     return {
       prolificPid: p.prolificPid,
       name: p.name,
+      firstName: p.firstName,
+      lastName: p.lastName,
       role: (s?.assignment ?? p.role) as string | null, // novice | expert | speaker
       variant: s?.variant ?? null,
       status: s?.status ?? null,

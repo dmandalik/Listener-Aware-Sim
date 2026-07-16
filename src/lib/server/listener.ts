@@ -228,7 +228,7 @@ const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
       "board with every part labelled, and the two to connect are highlighted.",
     prompt:
       "Write ONE message telling the technician exactly which two parts to connect. Several parts look alike, " +
-      "so “the socket” isn't enough — say which one.",
+      "so be specific.",
   },
 };
 
@@ -411,6 +411,8 @@ export async function startListenerSession(args: {
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null; // 'novice' | 'expert' when routed from /play
   variant?: "single" | "multi" | null;
@@ -446,6 +448,8 @@ export async function startListenerSession(args: {
     studyId: args.prolific.studyId,
     sessionId: args.prolific.sessionId,
     name: args.name,
+    firstName: args.firstName,
+    lastName: args.lastName,
     dataSharingConsent: args.dataSharingConsent,
     role: "listener",
     userAgent: args.userAgent,
@@ -859,6 +863,8 @@ export async function startSpeakerSession(args: {
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null;
   variant?: "single" | "multi" | null;
@@ -874,6 +880,8 @@ export async function startSpeakerSession(args: {
     studyId: args.prolific.studyId,
     sessionId: args.prolific.sessionId,
     name: args.name,
+    firstName: args.firstName,
+    lastName: args.lastName,
     dataSharingConsent: args.dataSharingConsent,
     role: "speaker",
     userAgent: args.userAgent,
@@ -934,6 +942,8 @@ export async function assignAndStart(args: {
   prolific: ProlificIdentity;
   userAgent?: string;
   name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   dataSharingConsent?: boolean | null;
 }): Promise<AssignResult> {
   await ready();
@@ -946,6 +956,8 @@ export async function assignAndStart(args: {
   const common = {
     userAgent: args.userAgent,
     name: args.name,
+    firstName: args.firstName,
+    lastName: args.lastName,
     dataSharingConsent: args.dataSharingConsent,
     variant,
   };

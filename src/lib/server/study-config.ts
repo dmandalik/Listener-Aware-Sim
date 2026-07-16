@@ -11,6 +11,7 @@ import { loadProlificConfig } from "@/lib/config";
 
 export interface PublicStudyConfig {
   requireProlific: boolean;
+  prolificRedirect: boolean;
   consent: {
     title: string;
     sections: Array<{ h?: string; p: string }>;
@@ -28,6 +29,7 @@ export function getPublicStudyConfig(): PublicStudyConfig {
   return {
     // Only enforced in production, so local dev can exercise the flow without params.
     requireProlific: cfg.requireProlificParams && process.env.NODE_ENV === "production",
+    prolificRedirect: cfg.prolificRedirect,
     consent: cfg.consent,
     completeUrl: url(e.PROLIFIC_COMPLETION_CODE),
     screenoutUrl: url(e.PROLIFIC_SCREENOUT_CODE),

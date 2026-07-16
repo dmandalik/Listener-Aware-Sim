@@ -18,10 +18,12 @@ export default function PlayPage() {
     };
     const dev = qs.get("dev") === "1" ? "&dev=1" : "";
     const name = sessionStorage.getItem("participantName") ?? undefined;
+    const firstName = sessionStorage.getItem("participantFirstName") ?? undefined;
+    const lastName = sessionStorage.getItem("participantLastName") ?? undefined;
     fetch("/api/play/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prolific, name }),
+      body: JSON.stringify({ prolific, name, firstName, lastName }),
     })
       .then(async (res) => {
         const json = await res.json();

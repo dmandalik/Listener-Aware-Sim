@@ -106,9 +106,16 @@ export default function ListenerPage() {
   const busy = useRef(false);
 
   const [completeUrl, setCompleteUrl] = useState<string | null>(null);
+  const [redirect, setRedirect] = useState(false);
   useEffect(() => {
     setDev(new URLSearchParams(window.location.search).get("dev") === "1");
-    fetch("/api/study-config").then((r) => r.json()).then((c) => setCompleteUrl(c.completeUrl)).catch(() => {});
+    fetch("/api/study-config")
+      .then((r) => r.json())
+      .then((c) => {
+        setCompleteUrl(c.completeUrl);
+        setRedirect(!!c.prolificRedirect);
+      })
+      .catch(() => {});
   }, []);
 
   const beginTrial = useCallback(async (p: TrialPayload) => {
@@ -323,7 +330,7 @@ export default function ListenerPage() {
           <p style={{ color: "var(--ink-soft)", marginBottom: 20 }}>
             Thank you — your data has been recorded.
           </p>
-          {completeUrl && (
+          {redirect && completeUrl && (
             <a className="btn" href={completeUrl} style={{ display: "inline-block", textDecoration: "none" }}>
               Finish &amp; return to Prolific
             </a>

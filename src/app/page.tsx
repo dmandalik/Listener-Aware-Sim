@@ -20,7 +20,8 @@ type Step = "loading" | "no-params" | "mobile" | "consent" | "name" | "go" | "sc
 export default function Entry() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [step, setStep] = useState<Step>("loading");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -44,11 +45,15 @@ export default function Entry() {
   }, []);
 
   const goToPlay = useCallback(() => {
-    sessionStorage.setItem("participantName", name.trim());
+    const f = firstName.trim();
+    const l = lastName.trim();
+    sessionStorage.setItem("participantFirstName", f);
+    sessionStorage.setItem("participantLastName", l);
+    sessionStorage.setItem("participantName", [f, l].filter(Boolean).join(" "));
     setStep("go");
     const qs = new URLSearchParams(params).toString();
     window.location.assign(qs ? `/play?${qs}` : "/play");
-  }, [params, name]);
+  }, [params, firstName, lastName]);
 
   const agree = useCallback(() => {
     setStep("name");
@@ -149,25 +154,41 @@ export default function Entry() {
         <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 14 }}>
           We use it only to label your responses in the study.
         </p>
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && name.trim() && goToPlay()}
-          placeholder="Your name"
-          maxLength={120}
-          style={{
+        {(() => {
+          const canStart = !!firstName.trim() && !!lastName.trim();
+          const field = {
             width: "100%",
             padding: "12px 14px",
             borderRadius: 8,
             border: "1px solid var(--line)",
             fontSize: 16,
             fontFamily: "var(--font-sans)",
-          }}
-        />
-        <button className="btn" style={{ marginTop: 16 }} disabled={!name.trim()} onClick={goToPlay}>
-          Start →
-        </button>
+          } as const;
+          return (
+            <>
+              <input
+                autoFocus
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && canStart && goToPlay()}
+                placeholder="First name"
+                maxLength={80}
+                style={field}
+              />
+              <input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && canStart && goToPlay()}
+                placeholder="Last name"
+                maxLength={80}
+                style={{ ...field, marginTop: 10 }}
+              />
+              <button className="btn" style={{ marginTop: 16 }} disabled={!canStart} onClick={goToPlay}>
+                Start →
+              </button>
+            </>
+          );
+        })()}
       </>,
     );
   }

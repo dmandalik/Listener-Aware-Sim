@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "The Fetch Games",
+  title: "Listener Aware Project Simulation",
   description: "A robot needs your help. Can you fetch what it means?",
 };
 

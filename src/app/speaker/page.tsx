@@ -5,7 +5,7 @@ import type { SpeakerTrialPayload } from "@/lib/server/listener";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 import { RobotAvatar } from "@/components/RobotAvatar";
 
-type Phase = "loading" | "composing" | "done" | "error";
+type Phase = "loading" | "intro" | "composing" | "done" | "error";
 
 async function post(url: string, body: unknown): Promise<SpeakerTrialPayload> {
   const res = await fetch(url, {
@@ -24,8 +24,15 @@ export default function SpeakerPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedThisTrial, setSavedThisTrial] = useState(false);
   const [completeUrl, setCompleteUrl] = useState<string | null>(null);
+  const [redirect, setRedirect] = useState(false);
   useEffect(() => {
-    fetch("/api/study-config").then((r) => r.json()).then((c) => setCompleteUrl(c.completeUrl)).catch(() => {});
+    fetch("/api/study-config")
+      .then((r) => r.json())
+      .then((c) => {
+        setCompleteUrl(c.completeUrl);
+        setRedirect(!!c.prolificRedirect);
+      })
+      .catch(() => {});
   }, []);
 
   const begin = useCallback((p: SpeakerTrialPayload) => {
@@ -35,7 +42,9 @@ export default function SpeakerPage() {
     }
     setPayload(p);
     setSavedThisTrial(false);
-    setPhase("composing");
+    // Show the one-time briefing pop-up before the first scene; later scenes start
+    // straight in (they're already past the intro and gated by "Next scene").
+    setPhase(p.trialIndex === 0 ? "intro" : "composing");
   }, []);
 
   useEffect(() => {
@@ -119,14 +128,41 @@ export default function SpeakerPage() {
           </div>
           <h1 style={{ margin: "6px 0 8px" }}>Thank you!</h1>
           <p style={{ color: "var(--ink-soft)", marginBottom: 20 }}>
-            Your messages are saved. Real helpers will try to follow them later — clearer
-            messages earn a bonus.
+            Your messages are saved.
           </p>
-          {completeUrl && (
+          {redirect && completeUrl && (
             <a className="btn" href={completeUrl} style={{ display: "inline-block", textDecoration: "none" }}>
               Finish &amp; return to Prolific
             </a>
           )}
+        </div>
+      </main>
+    );
+  }
+
+  if (phase === "intro" && payload) {
+    return (
+      <main className="center-screen">
+        <div className="card" style={{ padding: 34, width: "min(560px, 94vw)" }}>
+          <div style={{ display: "grid", placeItems: "center", marginBottom: 6 }}>
+            <RobotAvatar mood="hopeful" size={72} />
+          </div>
+          <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>Before you start</h2>
+          <p style={{ color: "var(--ink)", lineHeight: 1.6, marginBottom: 12 }}>
+            You&rsquo;ll be shown <b>{payload.missionTotal} scenes</b>, each with a different objective. For
+            each one, write a single message describing what needs to be done as clearly as you can —
+            a different person (the &ldquo;listener&rdquo;) will later read <b>only your message</b> and try to
+            carry it out.
+          </p>
+          <p style={{ color: "var(--ink)", lineHeight: 1.6, marginBottom: 18 }}>
+            <b>Read the briefing at the top of each scene</b> before you write — it explains exactly what
+            that scene needs.
+          </p>
+          <div style={{ display: "grid", placeItems: "center" }}>
+            <button className="btn" onClick={() => setPhase("composing")}>
+              Start &rarr;
+            </button>
+          </div>
         </div>
       </main>
     );

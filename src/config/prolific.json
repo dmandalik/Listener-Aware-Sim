@@ -1,6 +1,7 @@
 {
   "_comment": "Config-driven consent (§8). Completion codes / base URL come from env.",
   "requireProlificParams": false,
+  "prolificRedirect": false,
   "consent": {
     "title": "Consent to participate in research",
     "sections": [
@@ -12,8 +13,8 @@
       { "h": "Privacy, confidentiality & data security", "p": "Research records will be kept confidential to the extent allowed by law. Your responses will be stored using your name only. Your name will not appear in any research data, publications, or presentations. Data will be stored securely on Cornell Box and will only be accessible to authorized members of the research team. Please note that email communication is neither private nor secure. We cannot guarantee against interception of data sent via the internet by third parties." },
       { "h": "Sharing de-identified data", "p": "De-identified data from this study may be shared with the research community at large to advance science. We will remove or code any personal information that could identify you before files are shared with other researchers to ensure that, by current scientific standards and known methods, no one will be able to identify you from the information we share." },
       { "h": "Future use of identifiable data", "p": "Identifiable information will not be used or distributed beyond the research team." },
-      { "h": "Taking part is voluntary", "p": "Participation in this research is voluntary. You may refuse to participate before the study begins, discontinue at any time, or skip any questions or procedures that make you feel uncomfortable, with no penalty and no effect on the compensation earned before withdrawing, or your academic standing, record, or relationship with the university." },
-      { "h": "If you have questions", "p": "You may contact Dr. Angelique Taylor at amt298@cornell.edu or 646-971-3823." },
+      { "h": "Taking part is voluntary", "p": "Participation in this research is voluntary. You may refuse to participate before the study begins, discontinue at any time, or skip any questions or procedures that make you feel uncomfortable." },
+      { "h": "If you have questions", "p": "You may contact Dr. Angelique Taylor at amt298@cornell.edu." },
       { "h": "Statement of consent", "p": "By clicking “I Agree” and proceeding to the study, you confirm that you have read and understood the information above, that you are 18 years of age or older, and that you voluntarily agree to participate in this study." }
     ],
     "agreeLabel": "I Agree — Proceed to Study",

@@ -38,6 +38,8 @@ export interface UpsertParticipantArgs {
   studyId: string;
   sessionId: string;
   name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   dataSharingConsent?: boolean | null;
   role: "speaker" | "listener";
   userAgent?: string;
@@ -55,6 +57,8 @@ export async function upsertParticipant(
       studyId: a.studyId,
       sessionId: a.sessionId,
       name: a.name ?? null,
+      firstName: a.firstName ?? null,
+      lastName: a.lastName ?? null,
       dataSharingConsent: a.dataSharingConsent ?? null,
       role: a.role,
       userAgent: a.userAgent ?? null,
@@ -68,6 +72,8 @@ export async function upsertParticipant(
         role: a.role,
         userAgent: a.userAgent ?? null,
         ...(a.name ? { name: a.name } : {}),
+        ...(a.firstName ? { firstName: a.firstName } : {}),
+        ...(a.lastName ? { lastName: a.lastName } : {}),
         ...(a.dataSharingConsent != null ? { dataSharingConsent: a.dataSharingConsent } : {}),
         ...(a.consentedAt ? { consentedAt: a.consentedAt } : {}),
       },

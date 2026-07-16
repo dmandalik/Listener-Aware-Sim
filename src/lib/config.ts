@@ -228,6 +228,9 @@ export function loadTeleopMap(name: string): TeleopMap {
 
 export const zProlificConfig = z.object({
   requireProlificParams: z.boolean().default(true),
+  // Whether the end-of-study screen shows the "return to Prolific" completion
+  // link. Off while piloting with friends/lab members who aren't on Prolific.
+  prolificRedirect: z.boolean().default(true),
   consent: z.object({
     title: z.string(),
     sections: z.array(z.object({ h: z.string().optional(), p: z.string() })).min(1),

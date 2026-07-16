@@ -26,9 +26,15 @@ export async function POST(req: Request) {
       studyId: p.studyId ?? "DEV_STUDY",
       sessionId: p.sessionId ?? `DEV_${randomUUID().slice(0, 8)}`,
     };
+    const clean = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, 80) || null : null);
+    const firstName = clean(body.firstName);
+    const lastName = clean(body.lastName);
+    const combined = [firstName, lastName].filter(Boolean).join(" ") || clean(body.name);
     const result = await assignAndStart({
       prolific,
-      name: typeof body.name === "string" ? body.name.trim().slice(0, 120) || null : null,
+      name: combined,
+      firstName,
+      lastName,
       // Sharing de-identified data is stated in the consent form and implied by
       // agreeing to proceed — there is no separate opt-in, so record it as given.
       dataSharingConsent: true,
