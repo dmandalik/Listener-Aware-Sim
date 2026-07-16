@@ -175,6 +175,7 @@ async function getRoster(): Promise<any[]> {
       name: p.name,
       firstName: p.firstName,
       lastName: p.lastName,
+      email: p.email,
       role: (s?.assignment ?? p.role) as string | null, // novice | expert | speaker
       variant: s?.variant ?? null,
       // Did they finish the WHOLE study (games + end survey)? Only complete rows

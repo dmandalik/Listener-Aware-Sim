@@ -29,12 +29,14 @@ export async function POST(req: Request) {
     const clean = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, 80) || null : null);
     const firstName = clean(body.firstName);
     const lastName = clean(body.lastName);
+    const email = typeof body.email === "string" ? body.email.trim().slice(0, 160) || null : null;
     const combined = [firstName, lastName].filter(Boolean).join(" ") || clean(body.name);
     const result = await assignAndStart({
       prolific,
       name: combined,
       firstName,
       lastName,
+      email,
       // Sharing de-identified data is stated in the consent form and implied by
       // agreeing to proceed — there is no separate opt-in, so record it as given.
       dataSharingConsent: true,

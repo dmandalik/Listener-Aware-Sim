@@ -20,6 +20,7 @@ export default function PlayPage() {
     const name = sessionStorage.getItem("participantName") ?? undefined;
     const firstName = sessionStorage.getItem("participantFirstName") ?? undefined;
     const lastName = sessionStorage.getItem("participantLastName") ?? undefined;
+    const email = sessionStorage.getItem("participantEmail") ?? undefined;
     let demo: Record<string, unknown> = {};
     try {
       demo = JSON.parse(sessionStorage.getItem("participantDemographics") ?? "{}");
@@ -29,7 +30,7 @@ export default function PlayPage() {
     fetch("/api/play/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prolific, name, firstName, lastName, ...demo }),
+      body: JSON.stringify({ prolific, name, firstName, lastName, email, ...demo }),
     })
       .then(async (res) => {
         const json = await res.json();

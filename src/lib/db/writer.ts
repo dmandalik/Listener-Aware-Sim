@@ -7,7 +7,7 @@
 // malformed event fails loudly at the boundary instead of corrupting the record.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import {
   events,
@@ -41,6 +41,7 @@ export interface UpsertParticipantArgs {
   name?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  email?: string | null;
   dataSharingConsent?: boolean | null;
   role: "speaker" | "listener";
   userAgent?: string;
@@ -60,6 +61,7 @@ export async function upsertParticipant(
       name: a.name ?? null,
       firstName: a.firstName ?? null,
       lastName: a.lastName ?? null,
+      email: a.email ?? null,
       dataSharingConsent: a.dataSharingConsent ?? null,
       role: a.role,
       userAgent: a.userAgent ?? null,
@@ -75,6 +77,7 @@ export async function upsertParticipant(
         ...(a.name ? { name: a.name } : {}),
         ...(a.firstName ? { firstName: a.firstName } : {}),
         ...(a.lastName ? { lastName: a.lastName } : {}),
+        ...(a.email ? { email: a.email } : {}),
         ...(a.dataSharingConsent != null ? { dataSharingConsent: a.dataSharingConsent } : {}),
         ...(a.consentedAt ? { consentedAt: a.consentedAt } : {}),
       },
@@ -143,6 +146,55 @@ export async function endSession(
     .update(sessions)
     .set({ status, endedAt: new Date() })
     .where(eq(sessions.id, id));
+}
+
+/**
+ * Physically delete every trace of ABANDONED runs — sessions that never submitted
+ * the end survey (no NASA-TLX) and haven't been touched for `minAgeMinutes`. The
+ * age guard is the safety: a participant still playing (started < minAgeMinutes ago)
+ * is never purged, so this can run at any time. "Only complete data survives."
+ *
+ * Deletes children before parents to respect FKs (trials/surveys/events/utterances
+ * → sessions → participants). A participant is removed only when they have no
+ * remaining session at all (i.e. their only run was purged).
+ *
+ * Returns how many sessions and participants were deleted.
+ */
+export async function purgeIncompleteSessions(
+  minAgeMinutes = 60,
+): Promise<{ sessions: number; participants: number }> {
+  const db = await getDb();
+  const cutoff = new Date(now() - minAgeMinutes * 60_000);
+
+  const svs = (await db.select({ sessionId: surveys.sessionId, tlx: surveys.tlxMental }).from(surveys)) as Array<{
+    sessionId: string;
+    tlx: number | null;
+  }>;
+  const complete = new Set(svs.filter((s) => s.tlx != null).map((s) => s.sessionId));
+
+  const all = (await db.select().from(sessions)) as SessionRow[];
+  const targets = all.filter(
+    (s) => !complete.has(s.id) && new Date(s.startedAt as unknown as string).getTime() < cutoff.getTime(),
+  );
+  if (targets.length === 0) return { sessions: 0, participants: 0 };
+  const ids = targets.map((s) => s.id);
+  const pids = new Set(targets.map((s) => s.prolificPid));
+
+  // Children first, then the session rows themselves.
+  await db.delete(events).where(inArray(events.sessionId, ids));
+  await db.delete(trials).where(inArray(trials.sessionId, ids));
+  await db.delete(surveys).where(inArray(surveys.sessionId, ids));
+  await db.delete(utterances).where(inArray(utterances.authorSessionId, ids));
+  await db.delete(sessions).where(inArray(sessions.id, ids));
+
+  // Orphan participants: those whose every session was just purged.
+  const remaining = (await db.select({ pid: sessions.prolificPid }).from(sessions)) as Array<{ pid: string }>;
+  const stillHasSession = new Set(remaining.map((r) => r.pid));
+  const orphanPids = [...pids].filter((p) => !stillHasSession.has(p));
+  if (orphanPids.length) {
+    await db.delete(participants).where(inArray(participants.prolificPid, orphanPids));
+  }
+  return { sessions: ids.length, participants: orphanPids.length };
 }
 
 // ── Events (the firehose) ────────────────────────────────────────────────────

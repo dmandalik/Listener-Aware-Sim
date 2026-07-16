@@ -31,6 +31,9 @@ export interface RetrievalListenerWorld {
   /** Present for the LISTENER (drives fog + token). Absent for the SPEAKER. */
   pos?: [number, number];
   room?: string;
+  /** Present for the SPEAKER only: the cell where the helper/listener will start,
+   *  drawn as a labelled "START" marker so the speaker can anchor their directions. */
+  startPos?: [number, number];
   /** Retrieval: attempts remaining before the trial fails, and the id of the wrong
    *  object stepped on this move (for a brief "wrong part" note). Listener only. */
   attemptsLeft?: number;
@@ -52,7 +55,7 @@ export function GameBoard({
   onPick?: (objectId: string) => void;
   disabled?: boolean;
 }) {
-  const { width, height, cells, roomOf, objects, pos, rooms, room } = world;
+  const { width, height, cells, roomOf, objects, pos, rooms, room, startPos } = world;
   const CELL = cellSize(width);
 
   // Centroids for the visible room labels.
@@ -135,6 +138,53 @@ export function GameBoard({
           className="token"
           style={{ left: pos[0] * CELL + CELL * 0.19, top: pos[1] * CELL + CELL * 0.19 }}
         />
+      )}
+
+      {/* the helper's starting cell (speaker view only) — a labelled marker so the
+          speaker can give directions relative to where the helper begins */}
+      {startPos && (
+        <div
+          title="Where the helper starts"
+          style={{
+            position: "absolute",
+            left: startPos[0] * CELL,
+            top: startPos[1] * CELL,
+            width: CELL,
+            height: CELL,
+            display: "grid",
+            placeItems: "center",
+            pointerEvents: "none",
+            zIndex: 4,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <div
+              style={{
+                width: CELL * 0.46,
+                height: CELL * 0.46,
+                borderRadius: "50%",
+                background: "#16a34a",
+                border: "2px solid #fff",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+              }}
+            />
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                color: "#fff",
+                background: "#16a34a",
+                padding: "1px 5px",
+                borderRadius: 6,
+                letterSpacing: "0.04em",
+                lineHeight: 1.4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              START
+            </span>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -36,6 +36,7 @@ import {
   upsertAuthorUtterance,
   markParticipantCompleted,
   openTrial,
+  purgeIncompleteSessions,
   recordUtteranceOutcome,
   setTrialState,
   startSession,
@@ -66,6 +67,10 @@ export interface SpeakerBoard {
   width: number;
   height: number;
   rooms: Record<string, string>;
+  // Where the listener/helper will START on this map — shown to the speaker so they
+  // can orient their directions ("from the entrance, go left…"). Listeners never
+  // receive this field (it's on the speaker board only).
+  startPos: [number, number];
   objects: Array<{
     id: string;
     symbol: string;
@@ -415,6 +420,7 @@ export async function startListenerSession(args: {
   name?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  email?: string | null;
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null; // 'novice' | 'expert' when routed from /play
   variant?: "single" | "multi" | null;
@@ -452,6 +458,7 @@ export async function startListenerSession(args: {
     name: args.name,
     firstName: args.firstName,
     lastName: args.lastName,
+    email: args.email,
     dataSharingConsent: args.dataSharingConsent,
     role: "listener",
     userAgent: args.userAgent,
@@ -573,6 +580,9 @@ async function buildSpeakerData(
         width: w.geom.width,
         height: w.geom.height,
         rooms: w.rooms,
+        // The speaker's board is built from a fresh init state (they never move),
+        // so state.pos is exactly the helper's starting cell.
+        startPos: (state as any).pos as [number, number],
         objects: (w.objects as any[]).map((o) => ({
           id: o.id,
           symbol: o.symbol,
@@ -868,6 +878,7 @@ export async function startSpeakerSession(args: {
   name?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  email?: string | null;
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null;
   variant?: "single" | "multi" | null;
@@ -885,6 +896,7 @@ export async function startSpeakerSession(args: {
     name: args.name,
     firstName: args.firstName,
     lastName: args.lastName,
+    email: args.email,
     dataSharingConsent: args.dataSharingConsent,
     role: "speaker",
     userAgent: args.userAgent,
@@ -922,6 +934,41 @@ export async function advanceSpeakerTrial(sessionId: string): Promise<SpeakerTri
   return openSpeakerTrialAt(sessionId, rows.length, plan, pid);
 }
 
+/** Navigate the speaker to a specific scene index — forwards to the next scene OR
+ *  BACK to an earlier one so they can review/edit an utterance they already wrote.
+ *  A scene already opened is re-rendered from its stored state (no second insert —
+ *  the unique (session, index) index would reject one — and no duplicate trial_start
+ *  event); a brand-new index is opened normally. Going past the last scene finishes
+ *  the session. The speaker's saved text for the scene prefills the compose box (it
+ *  lives in the utterance pool, scoped by scene). */
+export async function goToSpeakerTrial(
+  sessionId: string,
+  index: number,
+): Promise<SpeakerTrialPayload> {
+  await ready();
+  const { plan, pid } = await loadPlan(sessionId);
+  if (index >= plan.trials.length) {
+    // Past the end → finish (openSpeakerTrialAt returns the done payload + ends it).
+    return openSpeakerTrialAt(sessionId, index, plan, pid);
+  }
+  const idx = Math.max(0, index);
+  const existing = await loadTrialRow(sessionId, idx);
+  if (!existing) {
+    // Never opened (advancing into new territory) — open it for the first time.
+    return openSpeakerTrialAt(sessionId, idx, plan, pid);
+  }
+  // Revisiting a scene already opened — rebuild its payload from stored state.
+  const cond = plan.trials[idx]!.condition;
+  return {
+    sessionId,
+    done: false,
+    trialIndex: idx,
+    missionNumber: idx + 1,
+    missionTotal: plan.trials.length,
+    speaker: await buildSpeakerData(sessionId, cond, existing.state),
+  };
+}
+
 // ── Balanced role assignment (single entry: /play) ────────────────────────────
 
 /**
@@ -947,9 +994,19 @@ export async function assignAndStart(args: {
   name?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  email?: string | null;
   dataSharingConsent?: boolean | null;
 }): Promise<AssignResult> {
   await ready();
+  // Keep the database complete-only: before assigning, sweep away runs that were
+  // abandoned (no end survey) and have sat untouched for over an hour. The age guard
+  // means anyone still playing is never touched. Best-effort — a purge failure must
+  // never block a new participant from starting.
+  try {
+    await purgeIncompleteSessions(60);
+  } catch {
+    /* non-fatal: proceed with assignment */
+  }
   const assignment = await pickAssignment();
   // The main study is assembled from the layout registry (study-plan.json), so the
   // single `layoutsPerTask` toggle switches everyone between the 3-trial and the
@@ -961,6 +1018,7 @@ export async function assignAndStart(args: {
     name: args.name,
     firstName: args.firstName,
     lastName: args.lastName,
+    email: args.email,
     dataSharingConsent: args.dataSharingConsent,
     variant,
   };

@@ -36,6 +36,7 @@ export const participants = pgTable(
     name: text("name"), // full name (first + last), collected at entry
     firstName: text("first_name"),
     lastName: text("last_name"),
+    email: text("email"), // collected at entry (required in the UI)
     // Consent choice: may de-identified data be shared in a public dataset?
     dataSharingConsent: boolean("data_sharing_consent"),
     role: text("role", { enum: ["speaker", "listener"] }).notNull(),

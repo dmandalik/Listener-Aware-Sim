@@ -42,7 +42,9 @@ export default function SpeakerPage() {
       return;
     }
     setPayload(p);
-    setSavedThisTrial(false);
+    // A scene that already has a saved utterance (e.g. one we navigated BACK to)
+    // counts as saved, so the participant can move on without re-saving unchanged text.
+    setSavedThisTrial(!!p.speaker?.savedUtterance);
     // Show the one-time briefing pop-up before the first scene; later scenes start
     // straight in (they're already past the intro and gated by "Next scene").
     setPhase(p.trialIndex === 0 ? "intro" : "composing");
@@ -88,15 +90,20 @@ export default function SpeakerPage() {
     [payload],
   );
 
-  const goNext = useCallback(async () => {
-    if (!payload) return;
-    try {
-      begin(await post("/api/speaker/next", { sessionId: payload.sessionId }));
-    } catch (e) {
-      setError((e as Error).message);
-      setPhase("error");
-    }
-  }, [payload, begin]);
+  // Index-based navigation so Back and Next share one path: each moves relative to
+  // the scene currently shown. Next past the last scene finishes the session.
+  const goTo = useCallback(
+    async (index: number) => {
+      if (!payload) return;
+      try {
+        begin(await post("/api/speaker/goto", { sessionId: payload.sessionId, index }));
+      } catch (e) {
+        setError((e as Error).message);
+        setPhase("error");
+      }
+    },
+    [payload, begin],
+  );
 
   if (phase === "loading") {
     return (
@@ -199,8 +206,16 @@ export default function SpeakerPage() {
 
       <SpeakerPanel key={payload.trialIndex} data={payload.speaker} onSave={saveUtterance} />
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-        <button className="btn" onClick={goNext} disabled={!savedThisTrial}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+        <button
+          className="btn ghost"
+          onClick={() => goTo(payload.trialIndex - 1)}
+          disabled={payload.trialIndex === 0}
+          style={{ visibility: payload.trialIndex === 0 ? "hidden" : "visible" }}
+        >
+          ← Back
+        </button>
+        <button className="btn" onClick={() => goTo(payload.trialIndex + 1)} disabled={!savedThisTrial}>
           {payload.missionNumber >= payload.missionTotal ? "Finish" : "Next scene →"}
         </button>
       </div>

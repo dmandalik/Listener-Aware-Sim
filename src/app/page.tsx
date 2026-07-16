@@ -44,6 +44,7 @@ export default function Entry() {
   const [step, setStep] = useState<Step>("loading");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [genderOther, setGenderOther] = useState("");
@@ -76,6 +77,7 @@ export default function Entry() {
     const l = lastName.trim();
     sessionStorage.setItem("participantFirstName", f);
     sessionStorage.setItem("participantLastName", l);
+    sessionStorage.setItem("participantEmail", email.trim());
     sessionStorage.setItem("participantName", [f, l].filter(Boolean).join(" "));
     // Demographics collected up front; sent to /play/start and saved with the session.
     sessionStorage.setItem(
@@ -91,7 +93,7 @@ export default function Entry() {
     setStep("go");
     const qs = new URLSearchParams(params).toString();
     window.location.assign(qs ? `/play?${qs}` : "/play");
-  }, [params, firstName, lastName, age, gender, genderOther, race, raceOther]);
+  }, [params, firstName, lastName, email, age, gender, genderOther, race, raceOther]);
 
   const agree = useCallback(() => {
     setStep("name");
@@ -185,7 +187,8 @@ export default function Entry() {
   }
 
   if (step === "name") {
-    const canStart = !!firstName.trim() && !!lastName.trim();
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    const canStart = !!firstName.trim() && !!lastName.trim() && emailOk;
     // Plain helper (NOT a component) so inputs keep focus while typing.
     const choice = (
       opts: string[],
@@ -239,12 +242,13 @@ export default function Entry() {
             <div className="eyebrow">Almost there</div>
             <h2 style={{ margin: "4px 0 2px", fontSize: 22 }}>About you</h2>
             <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: 0 }}>
-              Your name labels your responses; the demographic questions are optional.
+              Your name and email label your responses; the demographic questions are optional.
             </p>
           </div>
           <div style={{ overflowY: "auto", padding: "8px 28px 6px", flex: 1 }}>
             <input autoFocus value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" maxLength={80} style={fieldStyle} />
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" maxLength={80} style={{ ...fieldStyle, marginTop: 10 }} />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" autoComplete="email" placeholder="Email address" maxLength={160} style={{ ...fieldStyle, marginTop: 10 }} />
             {label("What is your age range?")}
             {choice(AGES, (o) => age === o, setAge)}
             {label("Gender identity")}
@@ -262,7 +266,7 @@ export default function Entry() {
           <div style={{ padding: "12px 28px 20px", borderTop: "1px solid var(--line)" }}>
             <button className="btn" disabled={!canStart} onClick={goToPlay} style={{ width: "100%" }}>Start →</button>
             {!canStart && (
-              <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Please enter your first and last name.</p>
+              <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Please enter your first name, last name, and a valid email.</p>
             )}
           </div>
         </div>

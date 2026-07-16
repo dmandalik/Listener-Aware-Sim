@@ -109,8 +109,14 @@ export function SpeakerPanel({
           <>
             <div className="board-wrap">
               <GameBoard world={data.retrieval!.world as unknown as RetrievalListenerWorld} />
-              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center" }}>
+              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
                 <span className="legend-target"><span className="ring" /> = the part to retrieve</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{ width: 12, height: 12, borderRadius: "50%", background: "#16a34a", border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
+                  />
+                  = where the helper starts
+                </span>
                 <span>You see the whole building. The helper will not.</span>
               </p>
             </div>
