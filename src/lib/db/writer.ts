@@ -241,6 +241,33 @@ export async function insertUtterance(a: InsertUtteranceArgs): Promise<number> {
   return row.id;
 }
 
+/** Save an author's utterance for one layout, REPLACING their previous text for the
+ *  same (author, task, seed, scene) instead of adding a duplicate pool row — so a
+ *  speaker who edits and re-saves keeps exactly one utterance per layout. Serve /
+ *  outcome counts are left intact (speakers author before listeners are served). */
+export async function upsertAuthorUtterance(a: InsertUtteranceArgs): Promise<number> {
+  const db = await getDb();
+  const [existing] = (await db
+    .select()
+    .from(utterances)
+    .where(
+      and(
+        eq(utterances.authorSessionId, a.authorSessionId),
+        eq(utterances.taskId, a.taskId),
+        eq(utterances.seed, a.seed),
+        eq(utterances.scene, a.scene),
+      ),
+    )) as UtteranceRow[];
+  if (existing) {
+    await db
+      .update(utterances)
+      .set({ text: a.text, layout: a.layout ?? existing.layout })
+      .where(eq(utterances.id, existing.id));
+    return existing.id;
+  }
+  return insertUtterance(a);
+}
+
 /**
  * Pool draw for a (task, seed, scene) cell, PER CONDITION (§8.3). Picks the
  * utterance least-served-to-this-condition, breaking ties at random. Result: each

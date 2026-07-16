@@ -33,7 +33,7 @@ import {
   countUtterances,
   drawUtterance,
   endSession,
-  insertUtterance,
+  upsertAuthorUtterance,
   markParticipantCompleted,
   openTrial,
   recordUtteranceOutcome,
@@ -491,7 +491,10 @@ async function buildSpeakerData(
   const w = sv.world;
   const brief = SPEAKER_BRIEF[cond.taskId] ?? { description: "", prompt: "" };
 
-  // Any utterance this session already saved for this (task, seed) trial.
+  // Any utterance this session already saved for THIS exact layout. Scoped by
+  // scene as well as (task, seed): sibling layouts of the same task can share a
+  // seed (e.g. all repair layouts use seed 1), so without scene the box would
+  // prefill with the previous layout's text instead of starting blank.
   const db = await getDb();
   const prior = await db
     .select()
@@ -501,6 +504,7 @@ async function buildSpeakerData(
         eq(utterances.authorSessionId, sessionId),
         eq(utterances.taskId, cond.taskId),
         eq(utterances.seed, cond.seed),
+        eq(utterances.scene, cond.scene ?? ""),
       ),
     )
     .orderBy(desc(utterances.id));
@@ -618,7 +622,7 @@ export async function saveSpeakerUtterance(args: {
   if (!rt) throw new Error(`No trial ${args.trialIndex}`);
   const cond = rt.condition;
 
-  await insertUtterance({
+  await upsertAuthorUtterance({
     taskId: cond.taskId,
     seed: cond.seed,
     scene: cond.scene ?? "",
