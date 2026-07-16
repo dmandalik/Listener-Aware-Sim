@@ -154,8 +154,9 @@ export function GameBoard({
         </div>
       )}
 
-      {/* the helper's starting cell (speaker view only) — a labelled marker so the
-          speaker can give directions relative to where the helper begins */}
+      {/* the helper's starting cell (speaker view only) — the human icon plus a
+          "START" tag, so the speaker sees who begins here and can give directions
+          relative to it */}
       {startPos && (
         <div
           title="Where the helper starts"
@@ -171,17 +172,8 @@ export function GameBoard({
             zIndex: 4,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <div
-              style={{
-                width: CELL * 0.46,
-                height: CELL * 0.46,
-                borderRadius: "50%",
-                background: "#16a34a",
-                border: "2px solid #fff",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
-              }}
-            />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+            <HumanToken size={CELL * 0.72} />
             <span
               style={{
                 fontSize: 9,
