@@ -1,0 +1,1 @@
+ALTER TABLE "utterances" ADD COLUMN "compose_ms" integer;

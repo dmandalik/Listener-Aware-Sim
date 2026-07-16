@@ -158,6 +158,9 @@ export const utterances = pgTable(
     scene: text("scene").notNull(), // map/scene identifier
     layout: text("layout"), // stable layout id, e.g. "teleop/2" (multi-layout runs)
     text: text("text").notNull(),
+    // How long the speaker took to compose this utterance (ms from the scene opening
+    // to the save; reflects the final save if they edited).
+    composeMs: integer("compose_ms"),
     // Authorship / traceability.
     authorSessionId: text("author_session_id").notNull(),
     authorPid: text("author_pid"),

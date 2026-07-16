@@ -227,6 +227,7 @@ export interface InsertUtteranceArgs {
   scene: string;
   layout?: string | null;
   text: string;
+  composeMs?: number | null;
   authorSessionId: string;
   authorPid?: string | null;
 }
@@ -241,6 +242,7 @@ export async function insertUtterance(a: InsertUtteranceArgs): Promise<number> {
       scene: a.scene,
       layout: a.layout ?? null,
       text: a.text,
+      composeMs: a.composeMs ?? null,
       authorSessionId: a.authorSessionId,
       authorPid: a.authorPid ?? null,
     })
@@ -268,7 +270,7 @@ export async function upsertAuthorUtterance(a: InsertUtteranceArgs): Promise<num
   if (existing) {
     await db
       .update(utterances)
-      .set({ text: a.text, layout: a.layout ?? existing.layout })
+      .set({ text: a.text, layout: a.layout ?? existing.layout, composeMs: a.composeMs ?? existing.composeMs })
       .where(eq(utterances.id, existing.id));
     return existing.id;
   }

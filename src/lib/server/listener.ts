@@ -634,6 +634,7 @@ export async function saveSpeakerUtterance(args: {
     scene: cond.scene ?? "",
     layout: cond.layout ?? null,
     text,
+    composeMs: typeof args.composeMs === "number" ? Math.max(0, Math.round(args.composeMs)) : null,
     authorSessionId: args.sessionId,
     authorPid: pid,
   });
