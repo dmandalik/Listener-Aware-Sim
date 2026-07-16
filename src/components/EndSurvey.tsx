@@ -12,7 +12,10 @@ const TLX = [
   { key: "tlxMental", label: "Mental demand", q: "How mentally demanding were the games?", lo: "Very low", hi: "Very high" },
   { key: "tlxPhysical", label: "Physical demand", q: "How physically demanding were the games?", lo: "Very low", hi: "Very high" },
   { key: "tlxTemporal", label: "Temporal demand", q: "How hurried or rushed did the pace feel?", lo: "Very low", hi: "Very high" },
-  { key: "tlxPerformance", label: "Performance", q: "How successful were you at doing what you were asked to do?", lo: "Perfect", hi: "Failure" },
+  // Displayed intuitively (drag right = did better): Failure at the left, Perfect at
+  // the right. Stored in the canonical NASA-TLX orientation (higher = worse) via the
+  // reverse-score at submit, so all six items and the composite stay consistent.
+  { key: "tlxPerformance", label: "Performance", q: "How successful were you at doing what you were asked to do?", lo: "Failure", hi: "Perfect" },
   { key: "tlxEffort", label: "Effort", q: "How hard did you have to work to reach your level of performance?", lo: "Very low", hi: "Very high" },
   { key: "tlxFrustration", label: "Frustration", q: "How insecure, discouraged, irritated, or stressed did you feel?", lo: "Very low", hi: "Very high" },
 ] as const;
@@ -50,7 +53,15 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
         body: JSON.stringify({
           sessionId,
           feedback: feedback || null,
-          ...Object.fromEntries(TLX.map((t) => [t.key, tlx[t.key]])),
+          // Performance is shown with Perfect on the right (higher slider = did better),
+          // but NASA-TLX scores it higher = worse; reverse it so the stored value and
+          // the composite match the other five dimensions.
+          ...Object.fromEntries(
+            TLX.map((t) => {
+              const v = tlx[t.key] ?? 50;
+              return [t.key, t.key === "tlxPerformance" ? 100 - v : v];
+            }),
+          ),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "save failed");
