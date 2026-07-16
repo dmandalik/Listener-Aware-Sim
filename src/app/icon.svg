@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56">
+  <rect width="56" height="56" rx="13" fill="#12897a"/>
+  <!-- ears -->
+  <rect x="1.5" y="24" width="5" height="12" rx="2.5" fill="#0b5f54"/>
+  <rect x="49.5" y="24" width="5" height="12" rx="2.5" fill="#0b5f54"/>
+  <!-- antenna -->
+  <line x1="28" y1="8" x2="28" y2="14" stroke="#0b5f54" stroke-width="2.5"/>
+  <circle cx="28" cy="7" r="3.4" fill="#e0a53f"/>
+  <!-- face plate -->
+  <rect x="12" y="16" width="32" height="26" rx="7" fill="#eafaf6"/>
+  <!-- eyes -->
+  <circle cx="22" cy="27" r="3.2" fill="#0b5f54"/>
+  <circle cx="34" cy="27" r="3.2" fill="#0b5f54"/>
+  <!-- smile -->
+  <path d="M22 34 Q28 39 34 34" fill="none" stroke="#0b5f54" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
