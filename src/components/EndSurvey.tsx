@@ -1,25 +1,12 @@
 "use client";
 
-// End-of-study survey: demographics + NASA-TLX (raw, 0–100) + one open-ended
-// feedback question. Shown after the final round for speakers and listeners.
-// Saves to /api/survey; calls onDone() when submitted.
+// End-of-study survey: NASA-TLX (raw, 0–100 per item) + one open-ended feedback
+// question. Shown after the final round for speakers and listeners. Demographics
+// are collected up front (entry page), not here. Saves to /api/survey; calls
+// onDone() when submitted.
 
 import { useState } from "react";
 import { RobotAvatar } from "@/components/RobotAvatar";
-
-const AGES = ["18–24", "25–34", "35–44", "45–54", "55–64", "65 or older", "Prefer not to say"];
-const GENDERS = ["Woman", "Man", "Non-binary", "Prefer to self-describe", "Prefer not to say"];
-const RACES = [
-  "Asian",
-  "Black or African American",
-  "Hispanic or Latino",
-  "Middle Eastern or North African",
-  "Native American or Alaska Native",
-  "Native Hawaiian or Pacific Islander",
-  "White",
-  "Prefer not to say",
-  "Other",
-];
 
 const TLX = [
   { key: "tlxMental", label: "Mental demand", q: "How mentally demanding were the games?", lo: "Very low", hi: "Very high" },
@@ -30,33 +17,22 @@ const TLX = [
   { key: "tlxFrustration", label: "Frustration", q: "How insecure, discouraged, irritated, or stressed did you feel?", lo: "Very low", hi: "Very high" },
 ] as const;
 
-const field: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 8,
-  border: "1px solid var(--line)",
-  fontSize: 15,
-  fontFamily: "var(--font-sans)",
-};
+// Module-level (stable identity) so children — incl. the feedback textarea — never
+// remount on state change, which would drop input focus.
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+      <div className="eyebrow" style={{ marginBottom: 12 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
 
 export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: () => void }) {
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [genderOther, setGenderOther] = useState("");
-  const [race, setRace] = useState<string[]>([]);
-  const [raceOther, setRaceOther] = useState("");
   const [tlx, setTlx] = useState<Record<string, number | null>>({});
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const toggleRace = (r: string) => {
-    setRace((prev) => {
-      if (r === "Prefer not to say") return prev.includes(r) ? [] : ["Prefer not to say"];
-      const next = prev.filter((x) => x !== "Prefer not to say");
-      return next.includes(r) ? next.filter((x) => x !== r) : [...next, r];
-    });
-  };
 
   const allTlxAnswered = TLX.every((t) => tlx[t.key] != null);
 
@@ -70,11 +46,6 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          ageRange: age || null,
-          gender: gender || null,
-          genderOther: gender === "Prefer to self-describe" ? genderOther : null,
-          race,
-          raceOther: race.includes("Other") ? raceOther : null,
           feedback: feedback || null,
           ...Object.fromEntries(TLX.map((t) => [t.key, tlx[t.key]])),
         }),
@@ -87,57 +58,6 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
     }
   };
 
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-      <div className="eyebrow" style={{ marginBottom: 12 }}>{title}</div>
-      {children}
-    </div>
-  );
-
-  const Choices = ({
-    options,
-    value,
-    onPick,
-    multi,
-    isChecked,
-  }: {
-    options: string[];
-    value?: string;
-    onPick: (o: string) => void;
-    multi?: boolean;
-    isChecked?: (o: string) => boolean;
-  }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {options.map((o) => {
-        const checked = multi ? !!isChecked?.(o) : value === o;
-        return (
-          <label
-            key={o}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "9px 12px",
-              borderRadius: 8,
-              border: `1px solid ${checked ? "var(--accent)" : "var(--line)"}`,
-              background: checked ? "var(--accent-wash)" : "transparent",
-              cursor: "pointer",
-              fontSize: 15,
-            }}
-          >
-            <input
-              type={multi ? "checkbox" : "radio"}
-              checked={checked}
-              onChange={() => onPick(o)}
-              style={{ accentColor: "var(--accent)" }}
-            />
-            {o}
-          </label>
-        );
-      })}
-    </div>
-  );
-
   return (
     <main className="center-screen" style={{ alignItems: "flex-start", padding: "32px 20px" }}>
       <div style={{ width: "min(620px, 94vw)", margin: "0 auto" }}>
@@ -146,38 +66,8 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
         </div>
         <h1 style={{ textAlign: "center", margin: "0 0 6px" }}>A few quick questions</h1>
         <p style={{ textAlign: "center", color: "var(--ink-soft)", marginBottom: 22 }}>
-          Almost done — this helps us understand and improve the games. Demographics are optional.
+          Almost done — this helps us understand and improve the games.
         </p>
-
-        <Section title="About you">
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>What is your age range?</div>
-          <Choices options={AGES} value={age} onPick={setAge} />
-
-          <div style={{ fontWeight: 600, margin: "18px 0 8px" }}>Gender identity</div>
-          <Choices options={GENDERS} value={gender} onPick={setGender} />
-          {gender === "Prefer to self-describe" && (
-            <input
-              style={{ ...field, marginTop: 8 }}
-              placeholder="Self-describe (optional)"
-              value={genderOther}
-              onChange={(e) => setGenderOther(e.target.value)}
-              maxLength={120}
-            />
-          )}
-
-          <div style={{ fontWeight: 600, margin: "18px 0 4px" }}>Race / ethnicity</div>
-          <div style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 8 }}>Select all that apply.</div>
-          <Choices options={RACES} multi isChecked={(o) => race.includes(o)} onPick={toggleRace} />
-          {race.includes("Other") && (
-            <input
-              style={{ ...field, marginTop: 8 }}
-              placeholder="Self-describe (optional)"
-              value={raceOther}
-              onChange={(e) => setRaceOther(e.target.value)}
-              maxLength={120}
-            />
-          )}
-        </Section>
 
         <Section title="How the games felt">
           <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "0 0 14px" }}>
@@ -219,7 +109,16 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
             maxLength={2000}
             rows={3}
             placeholder="e.g., the driving game was clear, but I found the repair parts hard to tell apart…"
-            style={{ ...field, resize: "vertical", minHeight: 72 }}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              fontSize: 15,
+              fontFamily: "var(--font-sans)",
+              resize: "vertical",
+              minHeight: 72,
+            }}
           />
         </Section>
 

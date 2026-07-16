@@ -418,25 +418,29 @@ export interface SurveyArgs {
 /** Save (or replace) a session's end-of-study survey. One row per session. */
 export async function upsertSurvey(a: SurveyArgs): Promise<void> {
   const db = await getDb();
-  const values = {
-    sessionId: a.sessionId,
-    prolificPid: a.prolificPid ?? null,
-    role: a.role ?? null,
-    ageRange: a.ageRange ?? null,
-    gender: a.gender ?? null,
-    genderOther: a.genderOther ?? null,
-    race: a.race ?? null,
-    raceOther: a.raceOther ?? null,
-    tlxMental: a.tlxMental ?? null,
-    tlxPhysical: a.tlxPhysical ?? null,
-    tlxTemporal: a.tlxTemporal ?? null,
-    tlxPerformance: a.tlxPerformance ?? null,
-    tlxEffort: a.tlxEffort ?? null,
-    tlxFrustration: a.tlxFrustration ?? null,
-    feedback: a.feedback ?? null,
+  // Only write the fields actually PROVIDED (defined). Demographics are saved at
+  // session start and NASA-TLX + feedback at the end — two disjoint upserts to the
+  // same row, so a later write must not null out the earlier one.
+  const all: Record<string, unknown> = {
+    prolificPid: a.prolificPid,
+    role: a.role,
+    ageRange: a.ageRange,
+    gender: a.gender,
+    genderOther: a.genderOther,
+    race: a.race,
+    raceOther: a.raceOther,
+    tlxMental: a.tlxMental,
+    tlxPhysical: a.tlxPhysical,
+    tlxTemporal: a.tlxTemporal,
+    tlxPerformance: a.tlxPerformance,
+    tlxEffort: a.tlxEffort,
+    tlxFrustration: a.tlxFrustration,
+    feedback: a.feedback,
   };
+  const provided: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(all)) if (v !== undefined) provided[k] = v;
   await db
     .insert(surveys)
-    .values(values)
-    .onConflictDoUpdate({ target: surveys.sessionId, set: values });
+    .values({ sessionId: a.sessionId, ...provided })
+    .onConflictDoUpdate({ target: surveys.sessionId, set: provided });
 }

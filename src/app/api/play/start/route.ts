@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { assignAndStart } from "@/lib/server/listener";
+import { assignAndStart, saveSurvey } from "@/lib/server/listener";
 import { getPublicStudyConfig } from "@/lib/server/study-config";
 
 export const runtime = "nodejs";
@@ -40,6 +40,22 @@ export async function POST(req: Request) {
       dataSharingConsent: true,
       userAgent: req.headers.get("user-agent") ?? undefined,
     });
+
+    // Demographics are collected up front (with the name). Save them onto this
+    // session's survey row now; NASA-TLX + feedback merge into the same row at the end.
+    const race = Array.isArray(body.race)
+      ? (body.race as unknown[]).filter((x) => typeof x === "string").slice(0, 12)
+      : null;
+    const demo = {
+      ageRange: clean(body.ageRange),
+      gender: clean(body.gender),
+      genderOther: clean(body.genderOther),
+      race: race as string[] | null,
+      raceOther: clean(body.raceOther),
+    };
+    if (demo.ageRange || demo.gender || demo.genderOther || (race && race.length) || demo.raceOther) {
+      await saveSurvey({ sessionId: result.sessionId, ...demo });
+    }
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });

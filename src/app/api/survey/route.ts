@@ -16,16 +16,10 @@ export async function POST(req: Request) {
     if (typeof b.sessionId !== "string") {
       return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
     }
-    const race = Array.isArray(b.race)
-      ? (b.race as unknown[]).filter((x) => typeof x === "string").slice(0, 12)
-      : null;
+    // End-of-study: only NASA-TLX + feedback. Demographics are collected up front
+    // (at entry) and must NOT be sent here, or they'd overwrite the saved values.
     await saveSurvey({
       sessionId: b.sessionId,
-      ageRange: str(b.ageRange, 40),
-      gender: str(b.gender, 60),
-      genderOther: str(b.genderOther, 120),
-      race: race as string[] | null,
-      raceOther: str(b.raceOther, 120),
       tlxMental: tlx(b.tlxMental),
       tlxPhysical: tlx(b.tlxPhysical),
       tlxTemporal: tlx(b.tlxTemporal),

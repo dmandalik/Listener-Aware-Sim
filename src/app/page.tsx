@@ -4,6 +4,28 @@ import { useCallback, useEffect, useState } from "react";
 import { RobotAvatar } from "@/components/RobotAvatar";
 import { isMobileDevice } from "@/lib/mobile";
 
+const AGES = ["18–24", "25–34", "35–44", "45–54", "55–64", "65 or older", "Prefer not to say"];
+const GENDERS = ["Woman", "Man", "Non-binary", "Prefer to self-describe", "Prefer not to say"];
+const RACES = [
+  "Asian",
+  "Black or African American",
+  "Hispanic or Latino",
+  "Middle Eastern or North African",
+  "Native American or Alaska Native",
+  "Native Hawaiian or Pacific Islander",
+  "White",
+  "Prefer not to say",
+  "Other",
+];
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 8,
+  border: "1px solid var(--line)",
+  fontSize: 16,
+  fontFamily: "var(--font-sans)",
+};
+
 type Cfg = {
   requireProlific: boolean;
   consent: {
@@ -22,6 +44,11 @@ export default function Entry() {
   const [step, setStep] = useState<Step>("loading");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [genderOther, setGenderOther] = useState("");
+  const [race, setRace] = useState<string[]>([]);
+  const [raceOther, setRaceOther] = useState("");
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -50,10 +77,21 @@ export default function Entry() {
     sessionStorage.setItem("participantFirstName", f);
     sessionStorage.setItem("participantLastName", l);
     sessionStorage.setItem("participantName", [f, l].filter(Boolean).join(" "));
+    // Demographics collected up front; sent to /play/start and saved with the session.
+    sessionStorage.setItem(
+      "participantDemographics",
+      JSON.stringify({
+        ageRange: age || null,
+        gender: gender || null,
+        genderOther: gender === "Prefer to self-describe" ? genderOther.trim() || null : null,
+        race,
+        raceOther: race.includes("Other") ? raceOther.trim() || null : null,
+      }),
+    );
     setStep("go");
     const qs = new URLSearchParams(params).toString();
     window.location.assign(qs ? `/play?${qs}` : "/play");
-  }, [params, firstName, lastName]);
+  }, [params, firstName, lastName, age, gender, genderOther, race, raceOther]);
 
   const agree = useCallback(() => {
     setStep("name");
@@ -147,49 +185,88 @@ export default function Entry() {
   }
 
   if (step === "name") {
-    return card(
-      <>
-        <div className="eyebrow">Almost there</div>
-        <h2 style={{ margin: "6px 0 8px", fontSize: 22 }}>What’s your name?</h2>
-        <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 14 }}>
-          We use it only to label your responses in the study.
-        </p>
-        {(() => {
-          const canStart = !!firstName.trim() && !!lastName.trim();
-          const field = {
-            width: "100%",
-            padding: "12px 14px",
-            borderRadius: 8,
-            border: "1px solid var(--line)",
-            fontSize: 16,
-            fontFamily: "var(--font-sans)",
-          } as const;
+    const canStart = !!firstName.trim() && !!lastName.trim();
+    // Plain helper (NOT a component) so inputs keep focus while typing.
+    const choice = (
+      opts: string[],
+      on: (o: string) => boolean,
+      pick: (o: string) => void,
+      multi?: boolean,
+    ) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        {opts.map((o) => {
+          const sel = on(o);
           return (
-            <>
+            <label
+              key={o}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "9px 12px",
+                borderRadius: 8,
+                border: `1px solid ${sel ? "var(--accent)" : "var(--line)"}`,
+                background: sel ? "var(--accent-wash)" : "transparent",
+                cursor: "pointer",
+                fontSize: 15,
+              }}
+            >
               <input
-                autoFocus
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && canStart && goToPlay()}
-                placeholder="First name"
-                maxLength={80}
-                style={field}
+                type={multi ? "checkbox" : "radio"}
+                checked={sel}
+                onChange={() => pick(o)}
+                style={{ accentColor: "var(--accent)" }}
               />
-              <input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && canStart && goToPlay()}
-                placeholder="Last name"
-                maxLength={80}
-                style={{ ...field, marginTop: 10 }}
-              />
-              <button className="btn" style={{ marginTop: 16 }} disabled={!canStart} onClick={goToPlay}>
-                Start →
-              </button>
-            </>
+              {o}
+            </label>
           );
-        })()}
-      </>,
+        })}
+      </div>
+    );
+    const toggleRace = (r: string) =>
+      setRace((prev) => {
+        if (r === "Prefer not to say") return prev.includes(r) ? [] : ["Prefer not to say"];
+        const next = prev.filter((x) => x !== "Prefer not to say");
+        return next.includes(r) ? next.filter((x) => x !== r) : [...next, r];
+      });
+    const label = (t: string) => (
+      <div style={{ fontWeight: 600, margin: "18px 0 8px" }}>{t}</div>
+    );
+    return (
+      <main className="center-screen" style={{ alignItems: "flex-start", padding: "32px 20px" }}>
+        <div className="card" style={{ padding: 0, width: "min(560px, 94vw)", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+          <div style={{ padding: "24px 28px 6px" }}>
+            <div className="eyebrow">Almost there</div>
+            <h2 style={{ margin: "4px 0 2px", fontSize: 22 }}>About you</h2>
+            <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: 0 }}>
+              Your name labels your responses; the demographic questions are optional.
+            </p>
+          </div>
+          <div style={{ overflowY: "auto", padding: "8px 28px 6px", flex: 1 }}>
+            <input autoFocus value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" maxLength={80} style={fieldStyle} />
+            <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" maxLength={80} style={{ ...fieldStyle, marginTop: 10 }} />
+            {label("What is your age range?")}
+            {choice(AGES, (o) => age === o, setAge)}
+            {label("Gender identity")}
+            {choice(GENDERS, (o) => gender === o, setGender)}
+            {gender === "Prefer to self-describe" && (
+              <input value={genderOther} onChange={(e) => setGenderOther(e.target.value)} placeholder="Self-describe" maxLength={120} style={{ ...fieldStyle, marginTop: 8 }} />
+            )}
+            <div style={{ fontWeight: 600, margin: "18px 0 2px" }}>Race / ethnicity</div>
+            <div style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 8 }}>Select all that apply.</div>
+            {choice(RACES, (o) => race.includes(o), toggleRace, true)}
+            {race.includes("Other") && (
+              <input value={raceOther} onChange={(e) => setRaceOther(e.target.value)} placeholder="Self-describe" maxLength={120} style={{ ...fieldStyle, marginTop: 8 }} />
+            )}
+          </div>
+          <div style={{ padding: "12px 28px 20px", borderTop: "1px solid var(--line)" }}>
+            <button className="btn" disabled={!canStart} onClick={goToPlay} style={{ width: "100%" }}>Start →</button>
+            {!canStart && (
+              <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Please enter your first and last name.</p>
+            )}
+          </div>
+        </div>
+      </main>
     );
   }
 
