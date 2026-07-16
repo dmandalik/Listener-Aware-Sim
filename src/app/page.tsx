@@ -30,7 +30,7 @@ type Cfg = {
   requireProlific: boolean;
   consent: {
     title: string;
-    sections: Array<{ h?: string; p: string }>;
+    sections: Array<{ h?: string; p: string; bold?: boolean }>;
     agreeLabel: string;
     declineLabel: string;
   };
@@ -171,7 +171,7 @@ export default function Entry() {
             {cfg.consent.sections.map((s, i) => (
               <div key={i} style={{ marginBottom: 12 }}>
                 {s.h && <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{s.h}</div>}
-                <p style={{ margin: 0, color: "var(--ink)", lineHeight: 1.55, fontSize: 14 }}>{s.p}</p>
+                <p style={{ margin: 0, color: "var(--ink)", lineHeight: 1.55, fontSize: 14, fontWeight: s.bold ? 700 : 400 }}>{s.p}</p>
               </div>
             ))}
           </div>
@@ -243,6 +243,9 @@ export default function Entry() {
             <h2 style={{ margin: "4px 0 2px", fontSize: 22 }}>About you</h2>
             <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: 0 }}>
               Your name and email label your responses; the demographic questions are optional.
+            </p>
+            <p style={{ color: "var(--ink)", fontSize: 13, fontWeight: 700, margin: "8px 0 0" }}>
+              All information you provide is fully anonymized before analysis.
             </p>
           </div>
           <div style={{ overflowY: "auto", padding: "8px 28px 6px", flex: 1 }}>

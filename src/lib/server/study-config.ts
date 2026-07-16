@@ -14,7 +14,7 @@ export interface PublicStudyConfig {
   prolificRedirect: boolean;
   consent: {
     title: string;
-    sections: Array<{ h?: string; p: string }>;
+    sections: Array<{ h?: string; p: string; bold?: boolean }>;
     agreeLabel: string;
     declineLabel: string;
   };

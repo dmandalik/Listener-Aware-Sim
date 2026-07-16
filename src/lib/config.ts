@@ -233,7 +233,9 @@ export const zProlificConfig = z.object({
   prolificRedirect: z.boolean().default(true),
   consent: z.object({
     title: z.string(),
-    sections: z.array(z.object({ h: z.string().optional(), p: z.string() })).min(1),
+    sections: z
+      .array(z.object({ h: z.string().optional(), p: z.string(), bold: z.boolean().optional() }))
+      .min(1),
     agreeLabel: z.string(),
     declineLabel: z.string(),
   }),
