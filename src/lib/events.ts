@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch Games — event log schema (§10)
+// Listener Aware Simulation — event log schema (§10)
 //
 // "The event log is the product." Versioned, append-only, one row per event.
 // This is the scientific record — `events` is never overwritten, never deleted.

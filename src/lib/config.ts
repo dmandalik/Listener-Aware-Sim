@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch Games — config loader (§9.1: config-driven, not code-driven)
+// Listener Aware Simulation — config loader (§9.1: config-driven, not code-driven)
 //
 // Conditions and maps are DATA on disk, authorable by non-engineers. This module
 // loads and VALIDATES them. A malformed condition or map file fails loudly (§15)

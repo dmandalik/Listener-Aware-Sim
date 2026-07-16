@@ -124,7 +124,7 @@ export default function Entry() {
       <main className="center-screen">
         <div className="card" style={{ padding: 0, width: "min(680px, 94vw)", display: "flex", flexDirection: "column", maxHeight: "92vh" }}>
           <div style={{ padding: "26px 32px 8px" }}>
-            <div className="eyebrow">The Fetch Games</div>
+            <div className="eyebrow">Listener Aware Simulation</div>
             <h1 style={{ margin: "4px 0 2px", fontSize: 24 }}>{cfg.consent.title}</h1>
           </div>
           <div style={{ overflowY: "auto", padding: "8px 32px", flex: 1 }}>

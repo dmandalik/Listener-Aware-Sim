@@ -107,7 +107,7 @@ export default function AdminPage() {
     <div className="admin-wrap">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
-          <div className="eyebrow">The Fetch Games</div>
+          <div className="eyebrow">Listener Aware Simulation</div>
           <h1>Admin &amp; data</h1>
         </div>
         <button className="pill-btn" onClick={() => { sessionStorage.removeItem("adminKey"); setAuthed(false); }}>Lock</button>

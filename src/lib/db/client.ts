@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch Games — database client (dual driver)
+// Listener Aware Simulation — database client (dual driver)
 //
 //   DB_DRIVER=pglite → embedded in-process Postgres (local dev, tests, headless
 //                      engine). No server, no Docker. Data at PGLITE_DATA_DIR.

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch Games — shared domain types
+// Listener Aware Simulation — shared domain types
 //
 // This file is the single source of truth for the concepts in the prompt:
 //   - the Condition object (§7) — "this IS the experiment"

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch Games — environment loading, validated and FAIL-LOUD (§13, §15)
+// Listener Aware Simulation — environment loading, validated and FAIL-LOUD (§13, §15)
 //
 // A missing/invalid required var throws at startup with a clear message rather
 // than letting the app run half-configured. Never "silently proceed".

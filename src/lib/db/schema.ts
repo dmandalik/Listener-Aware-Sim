@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch Games — database schema (§12)
+// Listener Aware Simulation — database schema (§12)
 //
 // Postgres via Drizzle. Identical schema for local (PGlite) and prod (Neon).
 //

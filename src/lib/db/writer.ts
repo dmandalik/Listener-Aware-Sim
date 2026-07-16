@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch Games — persistence writer (§12)
+// Listener Aware Simulation — persistence writer (§12)
 //
 // Every event is committed to the database AS IT HAPPENS (§15: never buffered in
 // memory and flushed at the end — a participant who closes the tab mid-trial must
