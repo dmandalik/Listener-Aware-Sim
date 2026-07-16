@@ -13,6 +13,7 @@ import {
   events,
   participants,
   sessions,
+  surveys,
   trials,
   utterances,
   type ParticipantRow,
@@ -392,4 +393,50 @@ export async function closeTrial(a: CloseTrialArgs): Promise<void> {
       endedAt: new Date(),
     })
     .where(eq(trials.id, a.trialId));
+}
+
+// ── End-of-study survey (§ demographics + NASA-TLX + feedback) ────────────────
+
+export interface SurveyArgs {
+  sessionId: string;
+  prolificPid?: string | null;
+  role?: "speaker" | "novice" | "expert" | null;
+  ageRange?: string | null;
+  gender?: string | null;
+  genderOther?: string | null;
+  race?: string[] | null;
+  raceOther?: string | null;
+  tlxMental?: number | null;
+  tlxPhysical?: number | null;
+  tlxTemporal?: number | null;
+  tlxPerformance?: number | null;
+  tlxEffort?: number | null;
+  tlxFrustration?: number | null;
+  feedback?: string | null;
+}
+
+/** Save (or replace) a session's end-of-study survey. One row per session. */
+export async function upsertSurvey(a: SurveyArgs): Promise<void> {
+  const db = await getDb();
+  const values = {
+    sessionId: a.sessionId,
+    prolificPid: a.prolificPid ?? null,
+    role: a.role ?? null,
+    ageRange: a.ageRange ?? null,
+    gender: a.gender ?? null,
+    genderOther: a.genderOther ?? null,
+    race: a.race ?? null,
+    raceOther: a.raceOther ?? null,
+    tlxMental: a.tlxMental ?? null,
+    tlxPhysical: a.tlxPhysical ?? null,
+    tlxTemporal: a.tlxTemporal ?? null,
+    tlxPerformance: a.tlxPerformance ?? null,
+    tlxEffort: a.tlxEffort ?? null,
+    tlxFrustration: a.tlxFrustration ?? null,
+    feedback: a.feedback ?? null,
+  };
+  await db
+    .insert(surveys)
+    .values(values)
+    .onConflictDoUpdate({ target: surveys.sessionId, set: values });
 }

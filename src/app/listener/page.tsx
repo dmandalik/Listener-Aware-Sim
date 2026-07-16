@@ -6,9 +6,10 @@ import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
 import { TeleopBoard, Keypad, type TeleopListenerWorld } from "@/components/TeleopBoard";
 import { RepairDiagram, type RepairWorldView } from "@/components/RepairDiagram";
 import { RobotAvatar, type RobotMood } from "@/components/RobotAvatar";
+import { EndSurvey } from "@/components/EndSurvey";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 
-type Phase = "loading" | "intro" | "taskIntro" | "playing" | "trialEnd" | "done" | "error";
+type Phase = "loading" | "intro" | "taskIntro" | "playing" | "trialEnd" | "survey" | "done" | "error";
 
 // Overall game overview — shown ONCE before the first round. No task specifics
 // (those live in the per-task pop-up), just the structure of the whole study.
@@ -311,7 +312,7 @@ export default function ListenerPage() {
     try {
       const p = await post("/api/listener/next", { sessionId: payload.sessionId });
       if (p.done) {
-        setPhase("done");
+        setPhase("survey");
       } else {
         beginTrial(p);
       }
@@ -343,6 +344,10 @@ export default function ListenerPage() {
         </div>
       </main>
     );
+  }
+
+  if (phase === "survey" && payload) {
+    return <EndSurvey sessionId={payload.sessionId} onDone={() => setPhase("done")} />;
   }
 
   if (phase === "done") {

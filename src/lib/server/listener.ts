@@ -40,7 +40,9 @@ import {
   setTrialState,
   startSession,
   upsertParticipant,
+  upsertSurvey,
   writeEvent,
+  type SurveyArgs,
 } from "@/lib/db/writer";
 import { getAdapter, getTask, loadBuiltinMaps } from "@/lib/engine";
 
@@ -1010,4 +1012,19 @@ export async function resumeSpeakerSession(sessionId: string): Promise<SpeakerTr
     missionTotal: plan.trials.length,
     speaker: await buildSpeakerData(sessionId, cond, row.state),
   };
+}
+
+// ── End-of-study survey ───────────────────────────────────────────────────────
+
+/** Save a session's end-of-study survey. Fills in pid + role from the session so
+ *  the client only sends the answers. */
+export async function saveSurvey(
+  args: { sessionId: string } & Omit<SurveyArgs, "sessionId" | "prolificPid" | "role">,
+): Promise<void> {
+  await ready();
+  const db = await getDb();
+  const [sess] = await db.select().from(sessions).where(eq(sessions.id, args.sessionId));
+  if (!sess) throw new Error(`Unknown session "${args.sessionId}"`);
+  const role = (sess.assignment as "speaker" | "novice" | "expert" | null) ?? null;
+  await upsertSurvey({ ...args, prolificPid: sess.prolificPid, role });
 }

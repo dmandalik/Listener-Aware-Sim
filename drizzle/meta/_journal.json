@@ -71,6 +71,13 @@
       "when": 1784208512495,
       "tag": "0009_daily_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784215727059,
+      "tag": "0010_petite_karma",
+      "breakpoints": true
     }
   ]
 }

@@ -9,7 +9,7 @@
 import { asc, eq } from "drizzle-orm";
 import { env } from "@/lib/env";
 import { ensureMigrated, getDb } from "@/lib/db/client";
-import { events, participants, sessions, trials, utterances } from "@/lib/db/schema";
+import { events, participants, sessions, surveys, trials, utterances } from "@/lib/db/schema";
 
 // §16 open item — tune this, then confirm. A speaker earns this per successful
 // downstream listener trial across the utterances they authored.
@@ -315,11 +315,47 @@ async function getDataset(): Promise<any[]> {
   return rows;
 }
 
+/** One row per end-of-study survey: demographics, NASA-TLX (+ a raw average), and
+ *  the open feedback, with the participant's name joined in. */
+async function getSurvey(): Promise<any[]> {
+  const db = await getDb();
+  const [svs, parts] = (await Promise.all([
+    db.select().from(surveys),
+    db.select().from(participants),
+  ])) as [any[], any[]];
+  const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
+  return svs.map((s: any) => {
+    const tlxVals = [s.tlxMental, s.tlxPhysical, s.tlxTemporal, s.tlxPerformance, s.tlxEffort, s.tlxFrustration].filter(
+      (v) => v != null,
+    ) as number[];
+    return {
+      sessionId: s.sessionId,
+      prolificPid: s.prolificPid,
+      name: s.prolificPid ? nameByPid.get(s.prolificPid) ?? null : null,
+      role: s.role,
+      ageRange: s.ageRange,
+      gender: s.gender === "Prefer to self-describe" && s.genderOther ? s.genderOther : s.gender,
+      race: Array.isArray(s.race) ? s.race.join("; ") : s.race,
+      raceOther: s.raceOther,
+      tlxMental: s.tlxMental,
+      tlxPhysical: s.tlxPhysical,
+      tlxTemporal: s.tlxTemporal,
+      tlxPerformance: s.tlxPerformance,
+      tlxEffort: s.tlxEffort,
+      tlxFrustration: s.tlxFrustration,
+      tlxRaw: tlxVals.length ? Math.round((tlxVals.reduce((a, b) => a + b, 0) / tlxVals.length) * 10) / 10 : null,
+      feedback: s.feedback,
+      createdAt: s.createdAt,
+    };
+  });
+}
+
 const VIEWS: Record<string, () => Promise<any[]>> = {
   dataset: getDataset,
   roster: getRoster,
   results: getResults,
   authored: getAuthored,
+  survey: getSurvey,
 };
 
 export type ExportName = TableName | keyof typeof VIEWS;
@@ -328,6 +364,7 @@ export const EXPORT_NAMES: ExportName[] = [
   "results",
   "roster",
   "authored",
+  "survey",
   "events",
   "trials",
   "sessions",

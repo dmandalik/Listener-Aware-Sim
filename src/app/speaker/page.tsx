@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { SpeakerTrialPayload } from "@/lib/server/listener";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 import { RobotAvatar } from "@/components/RobotAvatar";
+import { EndSurvey } from "@/components/EndSurvey";
 
-type Phase = "loading" | "intro" | "composing" | "done" | "error";
+type Phase = "loading" | "intro" | "composing" | "survey" | "done" | "error";
 
 async function post(url: string, body: unknown): Promise<SpeakerTrialPayload> {
   const res = await fetch(url, {
@@ -37,7 +38,7 @@ export default function SpeakerPage() {
 
   const begin = useCallback((p: SpeakerTrialPayload) => {
     if (p.done) {
-      setPhase("done");
+      setPhase("survey");
       return;
     }
     setPayload(p);
@@ -117,6 +118,10 @@ export default function SpeakerPage() {
         </div>
       </main>
     );
+  }
+
+  if (phase === "survey" && payload) {
+    return <EndSurvey sessionId={payload.sessionId} onDone={() => setPhase("done")} />;
   }
 
   if (phase === "done") {

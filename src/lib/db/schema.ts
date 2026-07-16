@@ -182,8 +182,40 @@ export const utterances = pgTable(
   (t) => [index("utterances_pool_idx").on(t.taskId, t.seed, t.scene)],
 );
 
+// End-of-study survey: demographics, NASA-TLX workload (0–100 per item), and one
+// open-ended feedback field. One row per session (speaker or listener).
+export const surveys = pgTable(
+  "surveys",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id").notNull(),
+    prolificPid: text("prolific_pid"),
+    role: text("role", { enum: ["speaker", "novice", "expert"] }),
+    // Demographics (all optional; "prefer not to say" allowed).
+    ageRange: text("age_range"),
+    gender: text("gender"),
+    genderOther: text("gender_other"),
+    race: jsonb("race"), // string[] — select all that apply
+    raceOther: text("race_other"),
+    // NASA-TLX, raw 0–100 per dimension.
+    tlxMental: integer("tlx_mental"),
+    tlxPhysical: integer("tlx_physical"),
+    tlxTemporal: integer("tlx_temporal"),
+    tlxPerformance: integer("tlx_performance"),
+    tlxEffort: integer("tlx_effort"),
+    tlxFrustration: integer("tlx_frustration"),
+    // Open-ended game feedback.
+    feedback: text("feedback"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => [uniqueIndex("surveys_session_uq").on(t.sessionId)],
+);
+
 export type ParticipantRow = typeof participants.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type TrialRow = typeof trials.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type UtteranceRow = typeof utterances.$inferSelect;
+export type SurveyRow = typeof surveys.$inferSelect;
