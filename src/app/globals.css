@@ -289,8 +289,8 @@ button {
   animation: reveal 180ms ease both;
 }
 
-/* Listener's clickable parts — a pulsing accent ring so it's obvious you pick a
-   part up by clicking it (retrieval collects by click, not by walking). */
+/* Listener's clickable parts — a static light-grey ring marks that a part can be
+   picked up (retrieval collects by click). On hover it turns blue and pulses. */
 .cell.reveal.pickable {
   cursor: pointer;
 }
@@ -299,25 +299,25 @@ button {
   position: absolute;
   inset: 6%;
   border-radius: 50%;
-  border: 2px solid var(--accent);
-  animation: pick-pulse 1.5s ease-in-out infinite;
+  border: 2px solid var(--line);
+  opacity: 0.85;
   pointer-events: none;
   z-index: 1;
 }
 .cell.reveal.pickable:hover::after {
-  animation: none;
-  opacity: 1;
-  box-shadow: 0 0 0 3px var(--accent-wash);
+  border-color: #2f7fe0; /* blue on hover */
+  box-shadow: 0 0 0 3px rgba(47, 127, 224, 0.22);
+  animation: pick-pulse 1.3s ease-in-out infinite;
 }
 @keyframes pick-pulse {
   0%,
   100% {
-    opacity: 0.3;
-    transform: scale(0.88);
+    opacity: 0.4;
+    transform: scale(0.9);
   }
   50% {
-    opacity: 0.85;
-    transform: scale(1.06);
+    opacity: 1;
+    transform: scale(1.08);
   }
 }
 
