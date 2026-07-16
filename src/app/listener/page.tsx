@@ -8,24 +8,42 @@ import { RepairDiagram, type RepairWorldView } from "@/components/RepairDiagram"
 import { RobotAvatar, type RobotMood } from "@/components/RobotAvatar";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 
-type Phase = "loading" | "instructions" | "playing" | "trialEnd" | "done" | "error";
+type Phase = "loading" | "intro" | "taskIntro" | "playing" | "trialEnd" | "done" | "error";
 
-// How-to-play copy for the pre-game pop-up AND the in-game reference. Kept short
-// and plain for people who’ve never seen this study. Tailored to the listener’s
-// familiarity (novice vs expert), since what they can see differs. Emphasis uses
-// <strong> (not <b>) because `.game-guide b` is reserved for the section header.
-function taskGuide(taskId: string, isExpert: boolean, missionTotal: number): { steps: React.ReactNode[] } {
-  const rounds = (
+// Overall game overview — shown ONCE before the first round. No task specifics
+// (those live in the per-task pop-up), just the structure of the whole study.
+function gameIntro(missionTotal: number): React.ReactNode {
+  const perGame = Math.max(1, Math.round(missionTotal / 3));
+  return (
     <>
-      You’ll do this <strong>{missionTotal} time{missionTotal === 1 ? "" : "s"}</strong>, and each time the robot
-      sends you <strong>one message</strong> to follow.
+      This study has <strong>3 short games</strong> — driving a robot, repairing a robot, and fetching a part —
+      with <strong>{perGame} round{perGame === 1 ? "" : "s"} each</strong> ({missionTotal} in total). In every round a
+      robot sends you <strong>one message</strong>, and your job is to do exactly what it says. Each game starts with
+      its own quick how-to.
+    </>
+  );
+}
+
+function taskTitle(taskId: string): string {
+  return taskId === "teleop" ? "Driving" : taskId === "repair" ? "Repair" : "Fetching";
+}
+
+// Per-task how-to — the task-specific pop-up (shown when each new game begins) AND
+// the in-game reference. No overall "you'll do this N times" framing (that's in the
+// game intro). Tailored to the listener’s familiarity (novice vs expert), since what
+// they can see differs. Emphasis uses <strong> (not <b>) because `.game-guide b` is
+// reserved for the section header.
+function taskGuide(taskId: string, isExpert: boolean): { steps: React.ReactNode[] } {
+  const oneMessage = (
+    <>
+      Each round, the robot sends you <strong>one message</strong> to follow.
     </>
   );
 
   if (taskId === "teleop") {
     return {
       steps: [
-        <>You’re the <strong>driver</strong>: steer a robot to its goal. {rounds}</>,
+        <>In this game you <strong>drive a robot to a goal</strong>. {oneMessage}</>,
         isExpert ? (
           <>
             <strong>You can’t see the goal</strong> — the message describes where it is using the objects on the
@@ -45,7 +63,7 @@ function taskGuide(taskId: string, isExpert: boolean, missionTotal: number): { s
   if (taskId === "repair") {
     return {
       steps: [
-        <>Your job is to <strong>fix a robot by joining two of its parts</strong>. {rounds}</>,
+        <>In this game you <strong>fix a robot by joining two of its parts</strong>. {oneMessage}</>,
         isExpert ? (
           <><strong>Every part is labeled</strong> with its name, and the message tells you which two to join.</>
         ) : (
@@ -61,7 +79,7 @@ function taskGuide(taskId: string, isExpert: boolean, missionTotal: number): { s
   // retrieval
   return {
     steps: [
-      <>Your job is to <strong>pick up the one part</strong> a broken robot needs. {rounds}</>,
+      <>In this game you <strong>pick up the one part</strong> a broken robot needs. {oneMessage}</>,
       isExpert ? (
         <>
           You can see the <strong>whole building and every room’s name</strong>, plus a list of the parts. You only
@@ -104,6 +122,9 @@ export default function ListenerPage() {
   const viewAsRef = useRef<ViewAs | null>(null);
   viewAsRef.current = viewAs;
   const busy = useRef(false);
+  // Track the previous trial's task so we can show the task how-to only when a NEW
+  // game begins (tasks are grouped: teleop×N, repair×N, retrieval×N).
+  const lastTaskRef = useRef<string | null>(null);
 
   const [completeUrl, setCompleteUrl] = useState<string | null>(null);
   const [redirect, setRedirect] = useState(false);
@@ -121,9 +142,14 @@ export default function ListenerPage() {
   const beginTrial = useCallback(async (p: TrialPayload) => {
     setBudgetTotal(p.view?.budgetLeft || 1);
     setTimeLeft(Math.round((p.timeoutMs || 0) / 1000));
-    // Show the how-to-play pop-up (timer paused) before the FIRST mission. Later
-    // missions are gated by the "Next mission" button, so they start straight away.
-    setPhase(p.terminal ? "trialEnd" : p.trialIndex === 0 ? "instructions" : "playing");
+    // Pop-ups (timer paused): the overall game intro before the very first round,
+    // then a task how-to whenever a NEW game starts. Repeated rounds of the same
+    // game start straight in.
+    const newTask = p.taskId !== lastTaskRef.current;
+    lastTaskRef.current = p.taskId;
+    setPhase(
+      p.terminal ? "trialEnd" : p.trialIndex === 0 ? "intro" : newTask ? "taskIntro" : "playing",
+    );
     // Apply the current dev override (if any) to the freshly-opened trial.
     if (viewAsRef.current) {
       try {
@@ -355,7 +381,7 @@ export default function ListenerPage() {
     : isTeleop
       ? !!controlKey?.entries
       : !!partsKey?.entries;
-  const guide = taskGuide(payload.taskId, isExpertView, payload.missionTotal);
+  const guide = taskGuide(payload.taskId, isExpertView);
   const budgetLeft = payload.view.budgetLeft;
   const budgetPct = Math.max(0, Math.round((budgetLeft / budgetTotal) * 100));
   const low = budgetLeft <= Math.max(3, budgetTotal * 0.2);
@@ -548,13 +574,32 @@ export default function ListenerPage() {
       </div>
       )}
 
-      {phase === "instructions" && (
+      {phase === "intro" && (
         <div className="overlay">
           <div className="panel" style={{ width: "min(500px, 92vw)", textAlign: "left" }}>
             <div style={{ display: "grid", placeItems: "center", marginBottom: 6 }}>
               <RobotAvatar mood="hopeful" size={72} />
             </div>
-            <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>How to play</h2>
+            <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>Welcome</h2>
+            <p style={{ margin: "0 0 18px", lineHeight: 1.6, color: "var(--ink)" }}>
+              {gameIntro(payload.missionTotal)}
+            </p>
+            <div style={{ display: "grid", placeItems: "center" }}>
+              <button className="btn" onClick={() => setPhase("taskIntro")}>
+                Continue &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === "taskIntro" && (
+        <div className="overlay">
+          <div className="panel" style={{ width: "min(500px, 92vw)", textAlign: "left" }}>
+            <div style={{ display: "grid", placeItems: "center", marginBottom: 6 }}>
+              <RobotAvatar mood="hopeful" size={72} />
+            </div>
+            <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>{taskTitle(payload.taskId)} — how to play</h2>
             <ol style={{ margin: "0 0 14px", paddingLeft: 20, lineHeight: 1.55, color: "var(--ink)" }}>
               {guide.steps.map((s, i) => (
                 <li key={i} style={{ marginBottom: 8 }}>{s}</li>
@@ -566,7 +611,7 @@ export default function ListenerPage() {
             </div>
             <div style={{ display: "grid", placeItems: "center", marginTop: 18 }}>
               <button className="btn" onClick={() => setPhase("playing")}>
-                Start mission {payload.missionNumber} of {payload.missionTotal} →
+                Start &rarr;
               </button>
             </div>
           </div>

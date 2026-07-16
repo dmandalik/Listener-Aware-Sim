@@ -149,10 +149,12 @@ export default function SpeakerPage() {
           </div>
           <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>Before you start</h2>
           <p style={{ color: "var(--ink)", lineHeight: 1.6, marginBottom: 12 }}>
-            You&rsquo;ll be shown <b>{payload.missionTotal} scenes</b>, each with a different objective. For
-            each one, write a single message describing what needs to be done as clearly as you can —
-            a different person (the &ldquo;listener&rdquo;) will later read <b>only your message</b> and try to
-            carry it out.
+            You&rsquo;ll help with <b>3 short games</b> — describing how to drive a robot, repair a robot, and
+            fetch a part — with <b>{Math.max(1, Math.round(payload.missionTotal / 3))} scene
+            {Math.round(payload.missionTotal / 3) === 1 ? "" : "s"} each</b> ({payload.missionTotal} in total). For
+            each scene, write <b>one message</b> describing what needs to be done as clearly as you can — a
+            different person (the &ldquo;listener&rdquo;) will later read <b>only your message</b> and try to carry
+            it out.
           </p>
           <p style={{ color: "var(--ink)", lineHeight: 1.6, marginBottom: 18 }}>
             <b>Read the briefing at the top of each scene</b> before you write — it explains exactly what
