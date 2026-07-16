@@ -47,6 +47,29 @@ export function SpeakerPanel({
     }
   };
 
+  // The board key/explanation — shown ABOVE the board (never hidden below it) so
+  // the speaker reads what they're looking at before they write.
+  const boardNote =
+    data.taskId === "repair" ? (
+      <div className="board-note">
+        <span className="legend-target"><span className="ring" /> = the two parts to connect</span>
+        <span>You see the wire. The technician must connect them from your words alone.</span>
+      </div>
+    ) : data.taskId === "teleop" ? (
+      <div className="board-note">
+        <span className="legend-target"><span className="ring" /> = the goal</span>
+        <span>You see the whole track and the goal. The driver sees neither.</span>
+      </div>
+    ) : (
+      <div className="board-note">
+        <span className="legend-target"><span className="ring" /> = the part to retrieve</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <HumanToken size={17} /> = where the helper starts
+        </span>
+        <span>You see the whole building. The helper will not.</span>
+      </div>
+    );
+
   return (
     <div className="stack" style={{ gap: 16 }}>
       <div className="card speaker-brief">
@@ -59,6 +82,8 @@ export function SpeakerPanel({
           </div>
         </div>
       </div>
+
+      {boardNote}
 
       <div className="play-area">
         {data.taskId === "repair" && data.repair ? (
@@ -73,10 +98,6 @@ export function SpeakerPanel({
                 }}
                 connectTarget={data.repair.world.connect}
               />
-              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-                <span className="legend-target"><span className="ring" /> = the two parts to connect</span>
-                <span>You see the wire. The technician must connect them from your words alone.</span>
-              </p>
             </div>
             <div className="side" />
           </>
@@ -89,10 +110,6 @@ export function SpeakerPanel({
                   pos: data.teleop.world.start,
                 } as unknown as TeleopListenerWorld}
               />
-              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-                <span className="legend-target"><span className="ring" /> = the goal</span>
-                <span>You see the whole track and the goal. The driver sees neither.</span>
-              </p>
             </div>
             <div className="side">
               <div className="card legend">
@@ -110,14 +127,6 @@ export function SpeakerPanel({
           <>
             <div className="board-wrap">
               <GameBoard world={data.retrieval!.world as unknown as RetrievalListenerWorld} />
-              <p className="hint" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-                <span className="legend-target"><span className="ring" /> = the part to retrieve</span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <HumanToken size={16} />
-                  = where the helper starts
-                </span>
-                <span>You see the whole building. The helper will not.</span>
-              </p>
             </div>
             <div className="side">
               <div className="card legend">

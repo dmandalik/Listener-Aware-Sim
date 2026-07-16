@@ -460,6 +460,17 @@ export default function ListenerPage() {
           </div>
         </div>
 
+        {/* Full instructions ABOVE the board (not hidden below it) so they're read
+            during play. */}
+        <div className="game-guide">
+          <b>How to play</b>
+          <ul>
+            {guide.steps.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ul>
+        </div>
+
         <div className="play-area">
           <div className="board-wrap">
             {isRepair ? (
@@ -578,16 +589,6 @@ export default function ListenerPage() {
             )}
           </div>
           )}
-        </div>
-
-        {/* full instructions kept at the bottom for reference during play */}
-        <div className="game-guide">
-          <b>How to play</b>
-          <ul>
-            {guide.steps.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
         </div>
       </div>
       )}

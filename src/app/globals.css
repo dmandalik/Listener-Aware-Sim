@@ -548,14 +548,34 @@ button {
   color: var(--ink-soft);
   line-height: 1.5;
 }
+/* A prominent key/explanation shown ABOVE the board (not hidden below it), so the
+   player reads what they're looking at before they act. */
+.board-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 15px;
+}
+.board-note .legend-target {
+  font-size: 15px;
+  color: var(--ink);
+  font-weight: 600;
+}
 .game-guide {
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-size: 15px;
+  color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 12px 16px 12px 14px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 .game-guide b {
   display: block;
