@@ -36,7 +36,7 @@ export default function SpeakerPage() {
       .catch(() => {});
   }, []);
 
-  const begin = useCallback((p: SpeakerTrialPayload) => {
+  const begin = useCallback((p: SpeakerTrialPayload, allowIntro = false) => {
     if (p.done) {
       setPhase("survey");
       return;
@@ -45,9 +45,10 @@ export default function SpeakerPage() {
     // A scene that already has a saved utterance (e.g. one we navigated BACK to)
     // counts as saved, so the participant can move on without re-saving unchanged text.
     setSavedThisTrial(!!p.speaker?.savedUtterance);
-    // Show the one-time briefing pop-up before the first scene; later scenes start
-    // straight in (they're already past the intro and gated by "Next scene").
-    setPhase(p.trialIndex === 0 ? "intro" : "composing");
+    // The welcome pop-up shows ONCE, only on the very first entry to scene 0
+    // (allowIntro). Navigating Back to an earlier scene — or Next to a later one —
+    // always lands straight on that scene's compose page, never re-opens the pop-up.
+    setPhase(allowIntro && p.trialIndex === 0 ? "intro" : "composing");
   }, []);
 
   useEffect(() => {
@@ -65,10 +66,12 @@ export default function SpeakerPage() {
             sessionId: qs.get("SESSION_ID") ?? undefined,
           },
         });
-    req.then(begin).catch((e) => {
-      setError(e.message);
-      setPhase("error");
-    });
+    req
+      .then((p) => begin(p, true)) // first load may show the welcome pop-up (scene 0)
+      .catch((e) => {
+        setError(e.message);
+        setPhase("error");
+      });
   }, [begin]);
 
   const saveUtterance = useCallback(
