@@ -10,6 +10,8 @@
 // until they walk in. This reveals nothing (no object data for other rooms is
 // ever sent) — it just makes the existing fog of war legible (§11).
 
+import { HumanToken } from "@/components/BoardTokens";
+
 export type CellType = "wall" | "floor" | "door";
 
 export interface BoardObject {
@@ -132,12 +134,24 @@ export function GameBoard({
         );
       })}
 
-      {/* the listener token (absent for the speaker) */}
+      {/* the listener token — a human helper (absent for the speaker) */}
       {pos && (
         <div
-          className="token"
-          style={{ left: pos[0] * CELL + CELL * 0.19, top: pos[1] * CELL + CELL * 0.19 }}
-        />
+          style={{
+            position: "absolute",
+            left: pos[0] * CELL,
+            top: pos[1] * CELL,
+            width: CELL,
+            height: CELL,
+            display: "grid",
+            placeItems: "center",
+            transition: "left 150ms ease, top 150ms ease",
+            zIndex: 3,
+            pointerEvents: "none",
+          }}
+        >
+          <HumanToken size={CELL * 0.82} />
+        </div>
       )}
 
       {/* the helper's starting cell (speaker view only) — a labelled marker so the

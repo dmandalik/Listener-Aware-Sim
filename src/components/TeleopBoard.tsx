@@ -4,6 +4,8 @@
 // the server (§6), so it cannot be shown here. Start is marked; the robot token
 // is at the current position.
 
+import { RobotToken } from "@/components/BoardTokens";
+
 export type TeleopCell = "wall" | "floor";
 
 export interface TeleopLandmark {
@@ -80,9 +82,21 @@ export function TeleopBoard({ world }: { world: TeleopListenerWorld }) {
 
       {/* robot token */}
       <div
-        className="token"
-        style={{ left: pos[0] * CELL + CELL * 0.19, top: pos[1] * CELL + CELL * 0.19 }}
-      />
+        style={{
+          position: "absolute",
+          left: pos[0] * CELL,
+          top: pos[1] * CELL,
+          width: CELL,
+          height: CELL,
+          display: "grid",
+          placeItems: "center",
+          transition: "left 150ms ease, top 150ms ease",
+          zIndex: 3,
+          pointerEvents: "none",
+        }}
+      >
+        <RobotToken size={CELL * 0.84} />
+      </div>
     </div>
   );
 }
