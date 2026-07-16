@@ -1,6 +1,6 @@
 {
   "_comment": "Config-driven consent (§8). Completion codes / base URL come from env.",
-  "requireProlificParams": true,
+  "requireProlificParams": false,
   "consent": {
     "title": "Consent to participate in research",
     "sections": [
