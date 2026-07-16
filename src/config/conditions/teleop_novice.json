@@ -1,13 +1,19 @@
 {
   "taskId": "teleop",
   "scene": "teleop_yard",
-  "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": false },
+  "keys": {
+    "sceneLabels": "none",
+    "partsKey": false,
+    "controlKey": false
+  },
   "viewpoint": "aligned",
-  "budget": 110,
+  "budget": 75,
   "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "scripted",
-  "utteranceSource": { "text": "Head down to the flower 🌸, then move two tiles right and two tiles down — the goal sits between the flower and the car 🚗." },
+  "utteranceSource": {
+    "text": "Head down to the flower 🌸, then move two tiles right and two tiles down — the goal sits between the flower and the car 🚗."
+  },
   "allowFollowups": false,
   "followupReply": "Sorry — I can't answer that. Do your best with what I told you.",
   "seed": 1

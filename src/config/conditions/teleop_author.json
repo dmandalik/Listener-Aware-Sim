@@ -1,9 +1,13 @@
 {
   "taskId": "teleop",
   "scene": "teleop_yard",
-  "keys": { "sceneLabels": "none", "partsKey": false, "controlKey": true },
+  "keys": {
+    "sceneLabels": "none",
+    "partsKey": false,
+    "controlKey": true
+  },
   "viewpoint": "aligned",
-  "budget": 110,
+  "budget": 75,
   "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "human",

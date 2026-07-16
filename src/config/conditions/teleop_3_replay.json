@@ -7,7 +7,7 @@
     "controlKey": false
   },
   "viewpoint": "aligned",
-  "budget": 110,
+  "budget": 75,
   "timeoutMs": 180000,
   "speakerBriefing": "novice",
   "speakerMode": "replay",
