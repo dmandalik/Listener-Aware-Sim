@@ -29,12 +29,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: () => void }) {
-  const [tlx, setTlx] = useState<Record<string, number | null>>({});
+  // Every slider starts at a real value (the neutral midpoint) so it always counts
+  // as answered and never blocks Submit — a participant who agrees with the middle
+  // doesn't have to nudge it, and a click that lands back on 50 still registers.
+  const [tlx, setTlx] = useState<Record<string, number>>(() =>
+    Object.fromEntries(TLX.map((t) => [t.key, 50])),
+  );
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const allTlxAnswered = TLX.every((t) => tlx[t.key] != null);
 
   const submit = async () => {
     if (saving) return;
@@ -71,14 +74,15 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
 
         <Section title="How the games felt">
           <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "0 0 14px" }}>
-            Thinking about the games you just played, drag each slider to where it fits.
+            Thinking about the games you just played, drag each slider to where it fits. Each starts at the
+            middle — adjust the ones you'd rate higher or lower.
           </p>
           {TLX.map((t) => (
             <div key={t.key} style={{ marginBottom: 18 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <span style={{ fontWeight: 600 }}>{t.label}</span>
-                <span style={{ fontVariantNumeric: "tabular-nums", color: tlx[t.key] == null ? "var(--ink-soft)" : "var(--accent-ink)", fontWeight: 600 }}>
-                  {tlx[t.key] == null ? "—" : tlx[t.key]}
+                <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--accent-ink)", fontWeight: 600 }}>
+                  {tlx[t.key]}
                 </span>
               </div>
               <div style={{ fontSize: 14, color: "var(--ink)", margin: "2px 0 8px" }}>{t.q}</div>
@@ -87,7 +91,7 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
                 min={0}
                 max={100}
                 step={5}
-                value={tlx[t.key] ?? 50}
+                value={tlx[t.key]}
                 onChange={(e) => setTlx((p) => ({ ...p, [t.key]: Number(e.target.value) }))}
                 style={{ width: "100%", accentColor: "var(--accent)" }}
               />
@@ -124,14 +128,9 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
 
         {error && <p style={{ color: "var(--alert)", marginBottom: 10 }}>{error}</p>}
         <div style={{ display: "grid", placeItems: "center", marginBottom: 40 }}>
-          <button className="btn" onClick={submit} disabled={saving || !allTlxAnswered} title={!allTlxAnswered ? "Please answer all six sliders above" : undefined}>
+          <button className="btn" onClick={submit} disabled={saving}>
             {saving ? "Submitting…" : "Submit & finish →"}
           </button>
-          {!allTlxAnswered && (
-            <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8 }}>
-              Please set all six sliders to continue.
-            </p>
-          )}
         </div>
       </div>
     </main>
