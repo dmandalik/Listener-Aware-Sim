@@ -92,8 +92,8 @@ function taskGuide(taskId: string, isExpert: boolean): { steps: React.ReactNode[
         </>
       ),
       <>
-        Move with the <strong>arrow keys or WASD</strong>, then <strong>click the item</strong> the message means.{" "}
-        <strong>You get one pick — choose carefully.</strong>
+        Move with the <strong>arrow keys or WASD</strong> and <strong>walk onto the item</strong> the message means
+        to grab it. <strong>You get 3 tries</strong> — stepping onto a wrong part costs one.
       </>,
     ],
   };
@@ -213,7 +213,7 @@ export default function ListenerPage() {
   );
 
   const move = useCallback((dir: string) => send({ type: "move", dir }), [send]);
-  const pick = useCallback((objectId: string) => send({ type: "pick", objectId }), [send]);
+  // Retrieval has no pick action — you collect by walking onto the object's tile.
   const pressKey = useCallback((key: string) => send({ type: "key", key }), [send]);
   const connectParts = useCallback((from: string, to: string) => send({ type: "connect", from, to }), [send]);
 
@@ -493,7 +493,7 @@ export default function ListenerPage() {
                 />
               </>
             ) : (
-              <GameBoard world={world} onPick={pick} disabled={phase !== "playing"} />
+              <GameBoard world={world} disabled={phase !== "playing"} />
             )}
           </div>
 
@@ -555,6 +555,19 @@ export default function ListenerPage() {
                         : "somewhere in the building"}
                     </span>
                   </div>
+                </div>
+
+                <div className="card legend">
+                  <h4>Attempts left</h4>
+                  <div className="row" style={{ alignItems: "baseline" }}>
+                    <b style={{ fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{world.attemptsLeft ?? 3}</b>
+                    <span className="name">walk onto the right part to win</span>
+                  </div>
+                  {world.lastWrong && (
+                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--alert)" }}>
+                      ✗ wrong part — that used an attempt
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -634,7 +647,9 @@ export default function ListenerPage() {
                       ? "Time ran out on that one."
                       : payload.outcome.reason === "budget_exhausted"
                         ? "You ran out of moves."
-                        : "That wasn't the part it meant."}
+                        : payload.outcome.reason === "out_of_attempts"
+                          ? "You used all 3 attempts."
+                          : "That wasn't the part it meant."}
                 </p>
               </>
             ) : (

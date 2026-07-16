@@ -134,9 +134,7 @@ function decodeAction(taskId: TaskId, raw: unknown): AnyAction {
     if (r?.type === "move" && ["up", "down", "left", "right"].includes(r.dir)) {
       return { type: "move", dir: r.dir };
     }
-    if (r?.type === "pick" && typeof r.objectId === "string") {
-      return { type: "pick", objectId: r.objectId };
-    }
+    // No pick action — retrieval collects by walking onto the object's tile.
   }
   if (taskId === "teleop") {
     if (r?.type === "key" && typeof r.key === "string") {

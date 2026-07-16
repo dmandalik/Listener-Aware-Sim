@@ -248,3 +248,48 @@ describe("viewpoint transform", () => {
     expect(s1.lastResolved).toBe(moved === "up" ? "down" : "up");
   });
 });
+
+describe("collect by walking (no click-to-pick, 3 attempts)", () => {
+  const fc = (o: Partial<Condition> = {}) =>
+    cond({ scene: "retrieval_facility", budget: 500, target: "c1", ...o });
+
+  it("only moves are legal — there is no pick action", () => {
+    const s = retrievalTask.init(1, fc());
+    expect(retrievalTask.legalActions(s).every((a) => a.type === "move")).toBe(true);
+  });
+
+  it("walking onto the target collects it and wins", async () => {
+    const { outcome } = await collect(fc(), oracleRetrievalBot);
+    expect(outcome.correct).toBe(true);
+    expect(outcome.reason).toBe("correct");
+  });
+
+  it("stepping onto wrong objects spends attempts; the 3rd wrong fails", () => {
+    let s = retrievalTask.init(1, fc()) as RetrievalState;
+    const wrongs = s.world.objects.filter((o) => o.id !== s.world.target).slice(0, 3);
+    const stepOnto = (st: RetrievalState, pos: [number, number]): RetrievalState => {
+      const [oc, or_] = pos;
+      const nbrs: Array<[number, number, "up" | "down" | "left" | "right"]> = [
+        [-1, 0, "right"], [1, 0, "left"], [0, -1, "down"], [0, 1, "up"],
+      ];
+      for (const [dx, dy, dir] of nbrs) {
+        const nc = oc + dx;
+        const nr = or_ + dy;
+        if (st.world.geom.cells[nr]?.[nc] === "floor") {
+          const room = st.world.geom.roomOf[nr]?.[nc] ?? st.room;
+          return retrievalTask.apply({ ...st, pos: [nc, nr], room }, { type: "move", dir });
+        }
+      }
+      throw new Error(`no floor neighbor for ${pos}`);
+    };
+    s = stepOnto(s, wrongs[0]!.pos);
+    expect(s.terminal).toBe(false);
+    expect(s.mistakes).toBe(1);
+    s = stepOnto(s, wrongs[1]!.pos);
+    expect(s.terminal).toBe(false);
+    s = stepOnto(s, wrongs[2]!.pos);
+    expect(s.terminal).toBe(true);
+    expect(s.reason).toBe("out_of_attempts");
+    expect(retrievalTask.outcome(s).correct).toBe(false);
+  });
+});

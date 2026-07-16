@@ -31,6 +31,10 @@ export interface RetrievalListenerWorld {
   /** Present for the LISTENER (drives fog + token). Absent for the SPEAKER. */
   pos?: [number, number];
   room?: string;
+  /** Retrieval: attempts remaining before the trial fails, and the id of the wrong
+   *  object stepped on this move (for a brief "wrong part" note). Listener only. */
+  attemptsLeft?: number;
+  lastWrong?: string | null;
 }
 
 // Fit the board into a comfortable width; clamp so small maps aren't huge and
