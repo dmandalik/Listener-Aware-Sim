@@ -47,13 +47,28 @@ export function SpeakerPanel({
     }
   };
 
+  // Name the two repair targets outright. The wire is a straight line drawn UNDER
+  // the parts, so whenever a third component happens to sit on it the wire vanishes
+  // into that part and re-emerges — reading as a chain ("connect A to C to B") and
+  // sending speakers after the wrong part. Both pilot speakers who used the wire hit
+  // this. The speaker can already see every label and both rings, so spelling the
+  // pair out adds no information — it just removes the ambiguity.
+  const repairPair = data.repair
+    ? data.repair.world.connect.map(
+        (id) => data.repair!.world.components.find((c) => c.id === id)?.name ?? id,
+      )
+    : [];
+
   // The board key/explanation — shown ABOVE the board (never hidden below it) so
   // the speaker reads what they're looking at before they write.
   const boardNote =
     data.taskId === "repair" ? (
       <div className="board-note">
         <span className="legend-target"><span className="ring" /> = the two parts to connect</span>
-        <span>You see the wire. The technician must connect them from your words alone.</span>
+        <span>
+          Connect <b>{repairPair[0]}</b> &harr; <b>{repairPair[1]}</b> — those two parts only.
+        </span>
+        <span>The technician must connect them from your words alone.</span>
       </div>
     ) : data.taskId === "teleop" ? (
       <div className="board-note">
