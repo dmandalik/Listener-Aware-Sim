@@ -1002,11 +1002,12 @@ export async function assignAndStart(args: {
 }): Promise<AssignResult> {
   await ready();
   // Keep the database complete-only: before assigning, sweep away runs that were
-  // abandoned (no end survey) and have sat untouched for over an hour. The age guard
-  // means anyone still playing is never touched. Best-effort — a purge failure must
-  // never block a new participant from starting.
+  // abandoned before finishing their games AND have been idle for 2h. Idleness is
+  // measured from the last event, so a slow-but-active participant is never touched,
+  // and their freed slot is refilled by this very assignment. Best-effort — a purge
+  // failure must never block a new participant from starting.
   try {
-    await purgeIncompleteSessions(60);
+    await purgeIncompleteSessions(120);
   } catch {
     /* non-fatal: proceed with assignment */
   }

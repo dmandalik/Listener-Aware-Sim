@@ -138,15 +138,18 @@ export function toJsonl(rows: any[]): string {
 // These flatten just the useful columns across tables so you get one tidy CSV per
 // concern instead of raw dumps. Exposed through the same export endpoint.
 //
-// COMPLETE-ONLY: a session counts as complete once the participant submits the END
-// survey (its NASA-TLX is filled). Every analysis view below (results/authored/
-// dataset/survey) includes ONLY complete sessions, so incomplete/abandoned runs can
-// never enter analysis. `roster` keeps everyone but flags who completed.
+// COMPLETE-ONLY: a session counts as complete once the participant FINISHED EVERY
+// GAME (sessions.status flips to "completed" when they pass the last trial). The end
+// survey is NOT the bar — a full gameplay run is the data, and discarding it because
+// someone closed the tab on the NASA-TLX loses far more than it protects. Every
+// analysis view below (results/authored/dataset) includes ONLY complete sessions, so
+// abandoned part-runs never enter analysis. `roster` keeps everyone but flags who
+// completed; `survey` naturally covers only those who actually submitted one.
 
-/** Session ids whose end-of-study survey was submitted (NASA-TLX present). */
+/** Session ids whose participant finished every game. */
 async function completeSessionIds(db: any): Promise<Set<string>> {
-  const svs = (await db.select().from(surveys)) as any[];
-  return new Set<string>(svs.filter((s: any) => s.tlxMental != null).map((s: any) => s.sessionId));
+  const ss = (await db.select().from(sessions)) as any[];
+  return new Set<string>(ss.filter((s: any) => s.status === "completed").map((s: any) => s.id));
 }
 
 /** One row per participant: who they are, their role, and how far they got. */

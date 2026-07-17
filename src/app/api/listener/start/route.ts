@@ -5,8 +5,18 @@ import { startListenerSession } from "@/lib/server/listener";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// DEV ONLY. Starts an anonymous session under an arbitrary study AND lets the caller
+// force their own novice/expert assignment — which would void the manipulation (§9.6)
+// if reachable by a participant. Real participants are routed through /play (balanced
+// assignment, consent, entry form) and resume by `sid`, so this stays off in prod.
 export async function POST(req: Request) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Direct session start is disabled. Open the study from the front page." },
+        { status: 403 },
+      );
+    }
     const body = await req.json().catch(() => ({}));
     const studyName: string = body.studyName ?? "listener_pilot";
 

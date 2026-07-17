@@ -18,6 +18,7 @@ import {
   utterances,
   type ParticipantRow,
   type SessionRow,
+  type TrialRow,
   type UtteranceRow,
 } from "./schema";
 import {
@@ -149,36 +150,92 @@ export async function endSession(
 }
 
 /**
- * Physically delete every trace of ABANDONED runs — sessions that never submitted
- * the end survey (no NASA-TLX) and haven't been touched for `minAgeMinutes`. The
- * age guard is the safety: a participant still playing (started < minAgeMinutes ago)
- * is never purged, so this can run at any time. "Only complete data survives."
+ * Physically delete every trace of ABANDONED runs, so only real data survives.
+ *
+ * "Complete" means the participant FINISHED EVERY GAME (sessions.status becomes
+ * "completed" when they pass the last trial). The end survey is deliberately NOT
+ * the bar: throwing away a whole gameplay run because someone closed the tab on
+ * the survey is far more costly than a missing NASA-TLX row.
+ *
+ * Abandoned means: not completed AND idle for `minIdleMinutes`. Idleness is measured
+ * from the session's LAST EVENT (every action writes one), not from when it started —
+ * a participant who is simply slow keeps emitting events, so an active session can
+ * never be purged out from under them.
+ *
+ * Pool bookkeeping is rolled back BEFORE the trials are deleted: a purged listener's
+ * draws and outcomes must not linger on the utterances they touched, or the draw
+ * balance and the speaker bonus keep counting data that no longer exists.
  *
  * Deletes children before parents to respect FKs (trials/surveys/events/utterances
  * → sessions → participants). A participant is removed only when they have no
- * remaining session at all (i.e. their only run was purged).
- *
- * Returns how many sessions and participants were deleted.
+ * remaining session at all.
  */
 export async function purgeIncompleteSessions(
-  minAgeMinutes = 60,
-): Promise<{ sessions: number; participants: number }> {
+  minIdleMinutes = 120,
+): Promise<{ sessions: number; participants: number; utterancesAdjusted: number }> {
   const db = await getDb();
-  const cutoff = new Date(now() - minAgeMinutes * 60_000);
-
-  const svs = (await db.select({ sessionId: surveys.sessionId, tlx: surveys.tlxMental }).from(surveys)) as Array<{
-    sessionId: string;
-    tlx: number | null;
-  }>;
-  const complete = new Set(svs.filter((s) => s.tlx != null).map((s) => s.sessionId));
+  const cutoff = now() - minIdleMinutes * 60_000;
+  const none = { sessions: 0, participants: 0, utterancesAdjusted: 0 };
 
   const all = (await db.select().from(sessions)) as SessionRow[];
-  const targets = all.filter(
-    (s) => !complete.has(s.id) && new Date(s.startedAt as unknown as string).getTime() < cutoff.getTime(),
-  );
-  if (targets.length === 0) return { sessions: 0, participants: 0 };
+  const candidates = all.filter((s) => s.status !== "completed");
+  if (candidates.length === 0) return none;
+  const candIds = candidates.map((s) => s.id);
+
+  // Last activity per candidate session: newest event, else when it started.
+  const evs = (await db
+    .select({ sessionId: events.sessionId, t: events.t })
+    .from(events)
+    .where(inArray(events.sessionId, candIds))) as Array<{ sessionId: string; t: number }>;
+  const lastEvent = new Map<string, number>();
+  for (const e of evs) {
+    const t = Number(e.t);
+    if (t > (lastEvent.get(e.sessionId) ?? 0)) lastEvent.set(e.sessionId, t);
+  }
+  const targets = candidates.filter((s) => {
+    const started = new Date(s.startedAt as unknown as string).getTime();
+    return Math.max(started, lastEvent.get(s.id) ?? 0) < cutoff;
+  });
+  if (targets.length === 0) return none;
   const ids = targets.map((s) => s.id);
   const pids = new Set(targets.map((s) => s.prolificPid));
+
+  // Give back every serve/outcome these runs contributed to the pool.
+  const doomed = (await db.select().from(trials).where(inArray(trials.sessionId, ids))) as TrialRow[];
+  let utterancesAdjusted = 0;
+  for (const t of doomed) {
+    if (t.utteranceId == null) continue;
+    const [u] = (await db
+      .select()
+      .from(utterances)
+      .where(eq(utterances.id, t.utteranceId))) as UtteranceRow[];
+    if (!u) continue;
+    const cond = t.assignment === "novice" || t.assignment === "expert" ? t.assignment : null;
+    const ended = !!t.endedAt; // only terminated trials ever incremented the outcome counts
+    const listenerTrials = Math.max(0, u.listenerTrials - (ended ? 1 : 0));
+    const listenerSuccesses = Math.max(0, u.listenerSuccesses - (ended && t.correct ? 1 : 0));
+    await db
+      .update(utterances)
+      .set({
+        timesServed: Math.max(0, u.timesServed - 1),
+        ...(cond === "novice"
+          ? {
+              servedNovice: Math.max(0, u.servedNovice - 1),
+              completedNovice: Math.max(0, u.completedNovice - (ended ? 1 : 0)),
+            }
+          : cond === "expert"
+            ? {
+                servedExpert: Math.max(0, u.servedExpert - 1),
+                completedExpert: Math.max(0, u.completedExpert - (ended ? 1 : 0)),
+              }
+            : {}),
+        listenerTrials,
+        listenerSuccesses,
+        successRate: listenerTrials ? listenerSuccesses / listenerTrials : null,
+      })
+      .where(eq(utterances.id, u.id));
+    utterancesAdjusted += 1;
+  }
 
   // Children first, then the session rows themselves.
   await db.delete(events).where(inArray(events.sessionId, ids));
@@ -194,7 +251,7 @@ export async function purgeIncompleteSessions(
   if (orphanPids.length) {
     await db.delete(participants).where(inArray(participants.prolificPid, orphanPids));
   }
-  return { sessions: ids.length, participants: orphanPids.length };
+  return { sessions: ids.length, participants: orphanPids.length, utterancesAdjusted };
 }
 
 // ── Events (the firehose) ────────────────────────────────────────────────────
@@ -322,7 +379,15 @@ export async function upsertAuthorUtterance(a: InsertUtteranceArgs): Promise<num
   if (existing) {
     await db
       .update(utterances)
-      .set({ text: a.text, layout: a.layout ?? existing.layout, composeMs: a.composeMs ?? existing.composeMs })
+      .set({
+        text: a.text,
+        layout: a.layout ?? existing.layout,
+        // Keep the FIRST compose time — "how long to come up with it". The client's
+        // timer restarts whenever the scene re-mounts (Back, refresh, resume), so a
+        // later re-save reports a few seconds and would otherwise clobber the real
+        // measurement with an artifact.
+        composeMs: existing.composeMs ?? a.composeMs ?? null,
+      })
       .where(eq(utterances.id, existing.id));
     return existing.id;
   }
