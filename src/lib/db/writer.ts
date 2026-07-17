@@ -197,8 +197,59 @@ export async function purgeIncompleteSessions(
     return Math.max(started, lastEvent.get(s.id) ?? 0) < cutoff;
   });
   if (targets.length === 0) return none;
-  const ids = targets.map((s) => s.id);
-  const pids = new Set(targets.map((s) => s.prolificPid));
+  return eraseSessions(db, targets.map((s) => s.id));
+}
+
+/**
+ * Delete specific participants' sessions outright, with the same pool-counter
+ * rollback as the purge — for surgically removing test/dev rows without the idle or
+ * completion checks. Returns what was removed. (Never call this on a real
+ * participant.)
+ */
+export async function deleteSessionsByPid(
+  pids: string[],
+): Promise<{ sessions: number; participants: number; utterancesAdjusted: number }> {
+  const db = await getDb();
+  if (!pids.length) return { sessions: 0, participants: 0, utterancesAdjusted: 0 };
+  const rows = (await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(inArray(sessions.prolificPid, pids))) as Array<{ id: string }>;
+  const result = await eraseSessions(
+    db,
+    rows.map((r) => r.id),
+  );
+  // Also drop participant rows that had no session at all (nothing for eraseSessions
+  // to orphan-clean), so a pid is fully gone.
+  const leftoverPids = (await db
+    .select({ pid: participants.prolificPid })
+    .from(participants)
+    .where(inArray(participants.prolificPid, pids))) as Array<{ pid: string }>;
+  const withSession = new Set(
+    ((await db.select({ pid: sessions.prolificPid }).from(sessions)) as Array<{ pid: string }>).map((r) => r.pid),
+  );
+  const strays = leftoverPids.map((r) => r.pid).filter((p) => !withSession.has(p));
+  if (strays.length) {
+    await db.delete(participants).where(inArray(participants.prolificPid, strays));
+    result.participants += strays.length;
+  }
+  return result;
+}
+
+/** Roll back pool bookkeeping for a set of sessions, then delete every trace of them
+ *  (children → sessions → orphaned participants). Shared by the purge and by targeted
+ *  deletes. A purged listener's serves/outcomes must be handed back to the utterances
+ *  they touched, or the draw balance and speaker bonus keep counting vanished data. */
+async function eraseSessions(
+  db: any,
+  ids: string[],
+): Promise<{ sessions: number; participants: number; utterancesAdjusted: number }> {
+  if (ids.length === 0) return { sessions: 0, participants: 0, utterancesAdjusted: 0 };
+  const owners = (await db
+    .select({ pid: sessions.prolificPid })
+    .from(sessions)
+    .where(inArray(sessions.id, ids))) as Array<{ pid: string }>;
+  const pids = new Set(owners.map((r) => r.pid));
 
   // Give back every serve/outcome these runs contributed to the pool.
   const doomed = (await db.select().from(trials).where(inArray(trials.sessionId, ids))) as TrialRow[];
@@ -244,7 +295,7 @@ export async function purgeIncompleteSessions(
   await db.delete(utterances).where(inArray(utterances.authorSessionId, ids));
   await db.delete(sessions).where(inArray(sessions.id, ids));
 
-  // Orphan participants: those whose every session was just purged.
+  // Orphan participants: those whose every session was just deleted.
   const remaining = (await db.select({ pid: sessions.prolificPid }).from(sessions)) as Array<{ pid: string }>;
   const stillHasSession = new Set(remaining.map((r) => r.pid));
   const orphanPids = [...pids].filter((p) => !stillHasSession.has(p));
@@ -330,6 +381,18 @@ export async function setTrialState(trialId: number, state: unknown): Promise<vo
 
 // ── Utterances (the speaker pool, §8) ────────────────────────────────────────
 
+/** Session ids of speakers who FINISHED their whole run. Only their utterances are
+ *  eligible to be served to a listener — a half-finished or dev/test author is never
+ *  drawn from. Under batched recruitment every speaker completes before any listener
+ *  arrives, so this only ever excludes in-progress and abandoned authors. */
+async function completedSessionIdSet(db: any): Promise<Set<string>> {
+  const rows = (await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(eq(sessions.status, "completed"))) as Array<{ id: string }>;
+  return new Set(rows.map((r) => r.id));
+}
+
 export interface InsertUtteranceArgs {
   taskId: "retrieval" | "repair" | "teleop";
   seed: number;
@@ -409,12 +472,16 @@ export async function drawUtterance(
   condition: "novice" | "expert",
 ): Promise<UtteranceRow | null> {
   const db = await getDb();
-  const rows = (await db
+  const all = (await db
     .select()
     .from(utterances)
     .where(
       and(eq(utterances.taskId, taskId), eq(utterances.seed, seed), eq(utterances.scene, scene)),
     )) as UtteranceRow[];
+  // Serve ONLY utterances authored by a speaker who finished their whole run — never
+  // an in-progress, abandoned, or dev/test author.
+  const completed = await completedSessionIdSet(db);
+  const rows = all.filter((r) => completed.has(r.authorSessionId));
   if (rows.length === 0) return null;
 
   // Balance on COMPLETED trials, not draws: an utterance served to a listener who
@@ -452,13 +519,17 @@ export async function countUtterances(
   scene: string,
 ): Promise<number> {
   const db = await getDb();
-  const [row] = (await db
-    .select({ n: count() })
+  // Count only servable utterances (authored by a completed speaker) so a task isn't
+  // deemed "ready" for a listener on the strength of a half-finished author's text —
+  // which drawUtterance would then refuse to serve.
+  const rows = (await db
+    .select({ authorSessionId: utterances.authorSessionId })
     .from(utterances)
     .where(
       and(eq(utterances.taskId, taskId), eq(utterances.seed, seed), eq(utterances.scene, scene)),
-    )) as Array<{ n: number }>;
-  return Number(row?.n ?? 0);
+    )) as Array<{ authorSessionId: string }>;
+  const completed = await completedSessionIdSet(db);
+  return rows.filter((r) => completed.has(r.authorSessionId)).length;
 }
 
 /** Fold a TERMINATED listener trial into an utterance's aggregates. Increments the

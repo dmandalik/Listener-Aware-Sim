@@ -17,6 +17,8 @@ import { eq } from "drizzle-orm";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { events, participants, sessions, surveys, trials, utterances } from "@/lib/db/schema";
 import {
+  deleteSessionsByPid,
+  drawUtterance,
   insertUtterance,
   openTrial,
   purgeIncompleteSessions,
@@ -167,6 +169,66 @@ describe("purgeIncompleteSessions", () => {
     expect(u.listenerTrials).toBe(1);
     expect(u.listenerSuccesses).toBe(1);
     expect(u.successRate).toBe(1);
+  });
+
+  it("only serves utterances authored by a speaker who FINISHED their run", async () => {
+    const db = await getDb();
+    // Same pool cell, two authors: one finished their session, one is still in progress.
+    const done = await makeRun("SPK_DONE", { finishedGames: true, idleMinutes: 1 });
+    const wip = await makeRun("SPK_WIP", { finishedGames: false, idleMinutes: 1 });
+    const okId = await insertUtterance({
+      taskId: "retrieval", seed: 9, scene: "s9", text: "from a finished speaker",
+      authorSessionId: done, authorPid: "SPK_DONE",
+    });
+    await insertUtterance({
+      taskId: "retrieval", seed: 9, scene: "s9", text: "from an unfinished speaker",
+      authorSessionId: wip, authorPid: "SPK_WIP",
+    });
+    // Every draw must land on the finished author's utterance, never the WIP one.
+    for (let i = 0; i < 8; i++) {
+      const drawn = await drawUtterance("retrieval", 9, "s9", "novice");
+      expect(drawn?.id).toBe(okId);
+    }
+    // And with ONLY an unfinished author present, nothing is servable.
+    const wipOnly = await insertUtterance({
+      taskId: "repair", seed: 9, scene: "s-wip", text: "wip only", authorSessionId: wip, authorPid: "SPK_WIP",
+    });
+    expect(wipOnly).toBeGreaterThan(0);
+    const drawn = await drawUtterance("repair", 9, "s-wip", "novice");
+    expect(drawn).toBeNull();
+  });
+
+  it("deleteSessionsByPid removes test rows and rolls their pool effects back", async () => {
+    const db = await getDb();
+    const speaker = await makeRun("REAL_SPK", { finishedGames: true, idleMinutes: 1 });
+    const uid = await insertUtterance({
+      taskId: "retrieval", seed: 3, scene: "s3", text: "keep me", authorSessionId: speaker, authorPid: "REAL_SPK",
+    });
+    await db.update(utterances).set({
+      timesServed: 1, servedNovice: 1, completedNovice: 1, listenerTrials: 1, listenerSuccesses: 1, successRate: 1,
+    }).where(eq(utterances.id, uid));
+    // A dev listener that drew + completed that utterance (would otherwise count as real data).
+    const dev = await makeRun("DEV_LISTENER", {
+      finishedGames: true, idleMinutes: 1, role: "listener", assignment: "novice",
+    });
+    const tId = await openTrial({
+      sessionId: dev, trialIndex: 0, taskId: "retrieval", seed: 3, condition: {},
+      assignment: "novice", utteranceId: uid,
+    });
+    await db.update(trials).set({ endedAt: new Date(), correct: true }).where(eq(trials.id, tId));
+
+    const res = await deleteSessionsByPid(["DEV_LISTENER"]);
+    expect(res.sessions).toBe(1);
+    expect(res.participants).toBe(1);
+    expect(res.utterancesAdjusted).toBe(1);
+
+    // The dev listener is gone; the real speaker + its utterance remain, counters reset.
+    expect(((await db.select().from(sessions)) as any[]).map((s) => s.prolificPid)).toEqual(["REAL_SPK"]);
+    const [u] = (await db.select().from(utterances).where(eq(utterances.id, uid))) as any[];
+    expect(u.timesServed).toBe(0);
+    expect(u.completedNovice).toBe(0);
+    expect(u.listenerTrials).toBe(0);
+    expect(u.successRate).toBeNull();
   });
 
   it("does not roll back outcomes for a trial that never terminated", async () => {
