@@ -116,6 +116,22 @@ export async function getSummary(): Promise<Summary> {
 
 // ── Export ───────────────────────────────────────────────────────────────────
 
+// Stable multi-key sort so each analysis export reads in a human-checkable order —
+// crucially, every participant's rows are CONTIGUOUS (grouped by author, then task +
+// layout), so "did this speaker give all 6 utterances?" is answerable at a glance.
+// Without this the rows scatter by insertion id and completeness is easy to misread.
+function orderBy(...keys: string[]) {
+  return (a: any, b: any) => {
+    for (const k of keys) {
+      const av = a[k] ?? "";
+      const bv = b[k] ?? "";
+      if (av < bv) return -1;
+      if (av > bv) return 1;
+    }
+    return 0;
+  };
+}
+
 function csvCell(v: unknown): string {
   if (v == null) return "";
   const s = typeof v === "object" ? JSON.stringify(v) : String(v);
@@ -190,7 +206,7 @@ async function getRoster(): Promise<any[]> {
       consentedAt: p.consentedAt,
       completedAt: p.completedAt,
     };
-  });
+  }).sort(orderBy("role", "name", "prolificPid"));
 }
 
 /** One row per LISTENER trial — the core training/analysis record: who listened,
@@ -230,7 +246,8 @@ async function getResults(): Promise<any[]> {
         startedAt: t.startedAt,
         endedAt: t.endedAt,
       };
-    });
+    })
+    .sort(orderBy("listenerName", "listenerPid", "taskId", "layout"));
 }
 
 /** One row per authored utterance (speaker side) with the author's name and pool
@@ -262,7 +279,8 @@ async function getAuthored(): Promise<any[]> {
     listenerTrials: u.listenerTrials,
     successRate: u.successRate,
     createdAt: u.createdAt,
-  }));
+  }))
+    .sort(orderBy("authorName", "authorPid", "taskId", "layout"));
 }
 
 /** THE single training file: one denormalized row per listener response, joining
@@ -340,7 +358,9 @@ async function getDataset(): Promise<any[]> {
       }
     }
   }
-  return rows;
+  // Group every author's rows together (then task/layout, then each listener), so a
+  // speaker's full set is contiguous and easy to eyeball for completeness.
+  return rows.sort(orderBy("authorName", "authorPid", "taskId", "layout", "listenerRole", "listenerName"));
 }
 
 /** One row per end-of-study survey: demographics, NASA-TLX (+ a raw average), and
@@ -377,7 +397,7 @@ async function getSurvey(): Promise<any[]> {
       feedback: s.feedback,
       createdAt: s.createdAt,
     };
-  });
+  }).sort(orderBy("role", "name", "prolificPid"));
 }
 
 const VIEWS: Record<string, () => Promise<any[]>> = {
