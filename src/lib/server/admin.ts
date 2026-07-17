@@ -16,8 +16,17 @@ import { events, participants, sessions, surveys, trials, utterances } from "@/l
 const BONUS_PER_SUCCESS_USD = 0.05;
 const BONUS_CAP_USD = 4.0;
 
+/** Full admin: required for destructive actions (purge, delete-session). */
 export function checkAdminKey(key: string | null | undefined): boolean {
   return !!key && key === env().ADMIN_SECRET;
+}
+
+/** Read/view access: the full admin key OR the optional read-only viewer password.
+ *  Gates the dashboard + every data export, but never a destructive endpoint. */
+export function checkViewKey(key: string | null | undefined): boolean {
+  if (!key) return false;
+  const e = env();
+  return key === e.ADMIN_SECRET || (!!e.ADMIN_VIEW_SECRET && key === e.ADMIN_VIEW_SECRET);
 }
 
 const TABLES = { events, trials, sessions, participants, utterances } as const;

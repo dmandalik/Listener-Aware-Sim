@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { checkAdminKey, getSessionDetail, listSessions } from "@/lib/server/admin";
+import { checkViewKey, getSessionDetail, listSessions } from "@/lib/server/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function authed(req: Request): boolean {
   const key = req.headers.get("x-admin-key") ?? new URL(req.url).searchParams.get("key");
-  return checkAdminKey(key);
+  return checkViewKey(key);
 }
 
 export async function GET(req: Request) {

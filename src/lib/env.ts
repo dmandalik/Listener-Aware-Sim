@@ -14,6 +14,11 @@ const zEnv = z
     PGLITE_DATA_DIR: z.string().default("./.pglite"),
 
     ADMIN_SECRET: z.string().min(1).default("change-me-in-prod"),
+    // Optional read-only viewer password: grants the dashboard + all data exports,
+    // but NOT the destructive endpoints (purge / delete-session), which stay on
+    // ADMIN_SECRET. Share this with teammates who only need to see the data. Unset =
+    // viewer access disabled (only ADMIN_SECRET works).
+    ADMIN_VIEW_SECRET: z.string().optional(),
 
     PROLIFIC_COMPLETION_CODE: z.string().default("CHANGME_COMPLETE"),
     PROLIFIC_SCREENOUT_CODE: z.string().default("CHANGME_SCREENOUT"),
