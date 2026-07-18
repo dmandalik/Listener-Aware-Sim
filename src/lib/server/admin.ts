@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Admin data layer (§12): dashboard stats, exports, speaker-bonus, session replay.
+// Admin data layer (§12): dashboard stats, exports, session replay.
 // Gated by a single shared secret (ADMIN_SECRET) — no user accounts.
 //
 // The dataset is small (hundreds of rows), so stats are computed in JS for clarity
@@ -10,11 +10,6 @@ import { asc, eq } from "drizzle-orm";
 import { env } from "@/lib/env";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { events, participants, sessions, surveys, trials, utterances } from "@/lib/db/schema";
-
-// §16 open item — tune this, then confirm. A speaker earns this per successful
-// downstream listener trial across the utterances they authored.
-const BONUS_PER_SUCCESS_USD = 0.05;
-const BONUS_CAP_USD = 4.0;
 
 /** Full admin: required for destructive actions (purge, delete-session). */
 export function checkAdminKey(key: string | null | undefined): boolean {
@@ -437,38 +432,6 @@ export async function exportTable(table: ExportName, format: "csv" | "jsonl"): P
   return format === "csv" ? toCsv(rows) : toJsonl(rows);
 }
 
-// ── Speaker bonus (§12) ──────────────────────────────────────────────────────
-
-export interface BonusRow {
-  PROLIFIC_PID: string;
-  amount: number;
-  successes: number;
-  listenerTrials: number;
-  utterances: number;
-}
-
-export async function getBonus(): Promise<BonusRow[]> {
-  await ensureMigrated();
-  const us = await all("utterances");
-  const byPid = new Map<string, { successes: number; trials: number; utts: number }>();
-  for (const u of us) {
-    if (!u.authorPid) continue;
-    const b = byPid.get(u.authorPid) ?? { successes: 0, trials: 0, utts: 0 };
-    b.successes += u.listenerSuccesses ?? 0;
-    b.trials += u.listenerTrials ?? 0;
-    b.utts += 1;
-    byPid.set(u.authorPid, b);
-  }
-  return [...byPid.entries()]
-    .map(([pid, b]) => ({
-      PROLIFIC_PID: pid,
-      amount: Math.min(BONUS_CAP_USD, Math.round(b.successes * BONUS_PER_SUCCESS_USD * 100) / 100),
-      successes: b.successes,
-      listenerTrials: b.trials,
-      utterances: b.utts,
-    }))
-    .sort((a, b) => b.amount - a.amount);
-}
 
 // ── Session replay ───────────────────────────────────────────────────────────
 

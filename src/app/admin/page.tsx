@@ -21,7 +21,6 @@ export default function AdminPage() {
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<"dashboard" | "sessions">("dashboard");
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [bonus, setBonus] = useState<any[] | null>(null);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
   const [step, setStep] = useState(0);
@@ -53,7 +52,6 @@ export default function AdminPage() {
   const loadAll = useCallback(async (k: string) => {
     const s = await api("/api/admin/summary", k);
     setSummary(s);
-    setBonus(await api("/api/admin/bonus", k));
     setSessions(await api("/api/admin/sessions", k));
   }, [api]);
 
@@ -157,22 +155,6 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="card" style={{ padding: 16, overflowX: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <h4 style={{ margin: 0, color: "var(--ink-soft)" }}>Speaker bonus <span style={{ fontWeight: 400 }}>($0.05 / downstream success, cap $4 — tunable)</span></h4>
-              <button className="pill-btn" onClick={() => download("/api/admin/bonus?format=csv", "bonus.csv")}>Bonus CSV (PROLIFIC_PID, amount)</button>
-            </div>
-            <table className="admin-table">
-              <thead><tr><th>PROLIFIC_PID</th><th>Amount</th><th>Successes</th><th>Listener trials</th><th>Utterances</th></tr></thead>
-              <tbody>
-                {(bonus ?? []).map((b) => (
-                  <tr key={b.PROLIFIC_PID}><td>{b.PROLIFIC_PID}</td><td>${b.amount.toFixed(2)}</td><td>{b.successes}</td><td>{b.listenerTrials}</td><td>{b.utterances}</td></tr>
-                ))}
-                {(bonus ?? []).length === 0 && <tr><td colSpan={5} style={{ color: "var(--ink-soft)" }}>No speaker utterances with downstream data yet.</td></tr>}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
