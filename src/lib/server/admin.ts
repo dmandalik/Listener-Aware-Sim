@@ -43,7 +43,7 @@ function median(xs: number[]): number | null {
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
 export interface Summary {
-  sessions: { total: number; byStatus: Record<string, number>; byAssignment: Record<string, number> };
+  sessions: { total: number; completed: number; inProgress: number; byAssignment: Record<string, number> };
   cells: Array<{
     taskId: string;
     assignment: string;
@@ -53,27 +53,51 @@ export interface Summary {
     medianDurationMs: number | null;
     medianCost: number | null;
   }>;
-  dropout: { abandoned: number; byTrialsCompleted: Record<string, number> };
+  dropout: { abandoned: number };
   pool: { utterances: number; totalServed: number; avgSuccessRate: number | null };
 }
 
 export async function getSummary(): Promise<Summary> {
   await ensureMigrated();
-  const [ss, ts, us] = await Promise.all([all("sessions"), all("trials"), all("utterances")]);
+  const db = await getDb();
+  const [ss, ts, us, parts] = await Promise.all([
+    all("sessions"),
+    all("trials"),
+    all("utterances"),
+    all("participants"),
+  ]);
+  const usable = await completeSessionIds(db); // COMPLETED, non-test sessions only
+  const testPid = new Set(
+    parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.prolificPid),
+  );
 
-  const byStatus: Record<string, number> = {};
-  const byAssignment: Record<string, number> = {};
+  // Headline counts: real (non-test) participants only; role counts are COMPLETED only.
+  const byAssignment: Record<string, number> = { speaker: 0, novice: 0, expert: 0 };
+  let completed = 0;
+  let inProgress = 0;
+  let abandoned = 0;
   for (const s of ss) {
-    byStatus[s.status] = (byStatus[s.status] ?? 0) + 1;
-    const a = s.assignment ?? "unassigned";
-    byAssignment[a] = (byAssignment[a] ?? 0) + 1;
+    if (testPid.has(s.prolificPid)) continue; // ignore test/dev runs entirely
+    if (s.status === "completed") {
+      completed += 1;
+      if (s.assignment && s.assignment in byAssignment) byAssignment[s.assignment] = (byAssignment[s.assignment] ?? 0) + 1;
+    } else {
+      inProgress += 1;
+      if (s.status !== "started") abandoned += 1;
+    }
   }
+  // In-progress that are effectively abandoned are still counted under inProgress; the
+  // dropout number is anyone not completed (excludes test).
+  abandoned = ss.filter((s) => !testPid.has(s.prolificPid) && s.status !== "completed").length;
 
-  // per (task, assignment) cell
+  // Condition cells: LISTENER trials (novice/expert) from complete, non-test sessions
+  // only. Speaker "trials" have no outcome, so they're excluded.
   const cellMap = new Map<string, { taskId: string; assignment: string; correct: number[]; dur: number[]; cost: number[]; done: number; n: number }>();
   for (const t of ts) {
-    const key = `${t.taskId}|${t.assignment ?? "?"}`;
-    const c = cellMap.get(key) ?? { taskId: t.taskId, assignment: t.assignment ?? "?", correct: [] as number[], dur: [] as number[], cost: [] as number[], done: 0, n: 0 };
+    if (t.assignment !== "novice" && t.assignment !== "expert") continue;
+    if (!usable.has(t.sessionId)) continue;
+    const key = `${t.taskId}|${t.assignment}`;
+    const c = cellMap.get(key) ?? { taskId: t.taskId, assignment: t.assignment, correct: [] as number[], dur: [] as number[], cost: [] as number[], done: 0, n: 0 };
     c.n += 1;
     if (t.endedAt) c.done += 1;
     if (t.correct != null) c.correct.push(t.correct ? 1 : 0);
@@ -93,29 +117,133 @@ export async function getSummary(): Promise<Summary> {
     }))
     .sort((a, b) => a.taskId.localeCompare(b.taskId) || a.assignment.localeCompare(b.assignment));
 
-  // dropout: non-completed sessions, and how far they got
-  const trialsBySession = new Map<string, number>();
-  for (const t of ts) trialsBySession.set(t.sessionId, (trialsBySession.get(t.sessionId) ?? 0) + 1);
-  const byTrialsCompleted: Record<string, number> = {};
-  let abandoned = 0;
-  for (const s of ss) {
-    if (s.status === "completed") continue;
-    abandoned += 1;
-    const got = trialsBySession.get(s.id) ?? 0;
-    byTrialsCompleted[String(got)] = (byTrialsCompleted[String(got)] ?? 0) + 1;
-  }
-
   const totalServed = us.reduce((a, u) => a + (u.timesServed ?? 0), 0);
   const rates = us.filter((u) => u.successRate != null).map((u) => u.successRate as number);
   return {
-    sessions: { total: ss.length, byStatus, byAssignment },
+    sessions: { total: completed + inProgress, completed, inProgress, byAssignment },
     cells,
-    dropout: { abandoned, byTrialsCompleted },
+    dropout: { abandoned },
     pool: {
       utterances: us.length,
       totalServed,
       avgSuccessRate: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null,
     },
+  };
+}
+
+// ── Live analysis (novice vs expert, updates itself as people play) ───────────
+
+interface RoleStat {
+  n: number;
+  successRate: number | null;
+  medianMoves: number | null;
+  medianDurationMs: number | null;
+}
+
+export interface Analysis {
+  participants: { novice: number; expert: number; speaker: number };
+  overall: { novice: RoleStat; expert: RoleStat; successGap: number | null };
+  byTask: Array<{ taskId: string; novice: RoleStat; expert: RoleStat; successGap: number | null }>;
+  withinUtterance: { paired: number; expertBetter: number; noviceBetter: number; same: number; expertAdvantage: number | null };
+  workload: { novice: number | null; expert: number | null; byTask: Array<{ taskId: string; novice: number | null; expert: number | null }> };
+  generatedAt: string | null;
+}
+
+function roleStat(trials: any[]): RoleStat {
+  const correct: number[] = trials.filter((t) => t.correct != null).map((t) => (t.correct ? 1 : 0));
+  const moves = trials.filter((t) => t.cost != null).map((t) => t.cost as number);
+  const dur = trials.filter((t) => t.durationMs != null).map((t) => Number(t.durationMs));
+  return {
+    n: trials.length,
+    successRate: correct.length ? correct.reduce((a, b) => a + b, 0) / correct.length : null,
+    medianMoves: median(moves),
+    medianDurationMs: median(dur),
+  };
+}
+
+/** Novice-vs-expert performance, the within-utterance contrast, and workload — all
+ *  computed from COMPLETED, non-test data. Pure read; recomputes on every call, so the
+ *  admin "Analysis" tab stays current as more people play, with zero intervention. */
+export async function getAnalysis(): Promise<Analysis> {
+  await ensureMigrated();
+  const db = await getDb();
+  const [ss, ts, tlx] = await Promise.all([all("sessions"), all("trials"), all("trialSurveys")]);
+  const usable = await completeSessionIds(db); // completed, non-test
+
+  const lis = ts.filter(
+    (t) => (t.assignment === "novice" || t.assignment === "expert") && usable.has(t.sessionId),
+  );
+  const nov = lis.filter((t) => t.assignment === "novice");
+  const exp = lis.filter((t) => t.assignment === "expert");
+
+  // participant counts (complete, non-test)
+  const roleOfSession = new Map(ss.map((s) => [s.id, s.assignment]));
+  const partN = { novice: 0, expert: 0, speaker: 0 };
+  for (const id of usable) {
+    const a = roleOfSession.get(id);
+    if (a && a in partN) partN[a as keyof typeof partN] += 1;
+  }
+
+  const gap = (a: RoleStat, b: RoleStat) =>
+    a.successRate != null && b.successRate != null ? Math.round((a.successRate - b.successRate) * 1000) / 1000 : null;
+
+  const overallNov = roleStat(nov);
+  const overallExp = roleStat(exp);
+
+  const tasks = [...new Set(lis.map((t) => t.taskId))].sort();
+  const byTask = tasks.map((taskId) => {
+    const n = roleStat(nov.filter((t) => t.taskId === taskId));
+    const e = roleStat(exp.filter((t) => t.taskId === taskId));
+    return { taskId, novice: n, expert: e, successGap: gap(e, n) };
+  });
+
+  // Within-utterance contrast: for each utterance heard by BOTH a novice and an expert,
+  // did the expert succeed where the novice didn't (the manipulation working)?
+  const byUtt = new Map<number, { n: boolean[]; e: boolean[] }>();
+  for (const t of lis) {
+    if (t.utteranceId == null || t.correct == null) continue;
+    const g = byUtt.get(t.utteranceId) ?? { n: [], e: [] };
+    (t.assignment === "novice" ? g.n : g.e).push(!!t.correct);
+    byUtt.set(t.utteranceId, g);
+  }
+  let paired = 0, expertBetter = 0, noviceBetter = 0, same = 0;
+  for (const g of byUtt.values()) {
+    if (!g.n.length || !g.e.length) continue;
+    paired += 1;
+    const ns = g.n.some(Boolean);
+    const es = g.e.some(Boolean);
+    if (ns === es) same += 1;
+    else if (es) expertBetter += 1;
+    else noviceBetter += 1;
+  }
+
+  // Workload: mean of each row's 6-item NASA-TLX average, by role and by task.
+  const tlxUsable = tlx.filter((s) => usable.has(s.sessionId));
+  const rawOf = (s: any) => {
+    const v = [s.tlxMental, s.tlxPhysical, s.tlxTemporal, s.tlxPerformance, s.tlxEffort, s.tlxFrustration].filter((x) => x != null) as number[];
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const meanRaw = (rows: any[]) => {
+    const vals = rows.map(rawOf).filter((x): x is number => x != null);
+    return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+  };
+  const wTasks = [...new Set(tlxUsable.filter((s) => s.taskId).map((s) => s.taskId))].sort();
+
+  return {
+    participants: partN,
+    overall: { novice: overallNov, expert: overallExp, successGap: gap(overallExp, overallNov) },
+    byTask,
+    withinUtterance: { paired, expertBetter, noviceBetter, same, expertAdvantage: paired ? Math.round((expertBetter / paired) * 1000) / 1000 : null },
+    workload: {
+      novice: meanRaw(tlxUsable.filter((s) => s.assignment === "novice")),
+      expert: meanRaw(tlxUsable.filter((s) => s.assignment === "expert")),
+      byTask: wTasks.map((taskId) => ({
+        taskId,
+        novice: meanRaw(tlxUsable.filter((s) => s.assignment === "novice" && s.taskId === taskId)),
+        expert: meanRaw(tlxUsable.filter((s) => s.assignment === "expert" && s.taskId === taskId)),
+      })),
+    },
+    generatedAt: null, // stamped by the route (Date.now() unavailable here in some contexts)
   };
 }
 

@@ -3,10 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 
 type Summary = {
-  sessions: { total: number; byStatus: Record<string, number>; byAssignment: Record<string, number> };
+  sessions: { total: number; completed: number; inProgress: number; byAssignment: Record<string, number> };
   cells: Array<{ taskId: string; assignment: string; trials: number; completed: number; successRate: number | null; medianDurationMs: number | null; medianCost: number | null }>;
-  dropout: { abandoned: number; byTrialsCompleted: Record<string, number> };
+  dropout: { abandoned: number };
   pool: { utterances: number; totalServed: number; avgSuccessRate: number | null };
+};
+type RoleStat = { n: number; successRate: number | null; medianMoves: number | null; medianDurationMs: number | null };
+type Analysis = {
+  participants: { novice: number; expert: number; speaker: number };
+  overall: { novice: RoleStat; expert: RoleStat; successGap: number | null };
+  byTask: Array<{ taskId: string; novice: RoleStat; expert: RoleStat; successGap: number | null }>;
+  withinUtterance: { paired: number; expertBetter: number; noviceBetter: number; same: number; expertAdvantage: number | null };
+  workload: { novice: number | null; expert: number | null; byTask: Array<{ taskId: string; novice: number | null; expert: number | null }> };
+  generatedAt: string | null;
 };
 type SessionRow = { id: string; pid: string; role: string; assignment: string | null; status: string; startedAt: string; endedAt: string | null; trials: number };
 
@@ -22,8 +31,9 @@ export default function AdminPage() {
   const [key, setKey] = useState("");
   const [authed, setAuthed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<"dashboard" | "sessions">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "analysis" | "sessions">("dashboard");
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
   const [step, setStep] = useState(0);
@@ -55,7 +65,16 @@ export default function AdminPage() {
   const loadAll = useCallback(async (k: string) => {
     const s = await api("/api/admin/summary", k);
     setSummary(s);
+    setAnalysis(await api("/api/admin/analysis", k));
     setSessions(await api("/api/admin/sessions", k));
+  }, [api]);
+
+  // Refresh the live numbers (dashboard + analysis) on demand.
+  const refresh = useCallback(async () => {
+    try {
+      setSummary(await api("/api/admin/summary"));
+      setAnalysis(await api("/api/admin/analysis"));
+    } catch { /* keep last */ }
   }, [api]);
 
   useEffect(() => {
@@ -116,20 +135,27 @@ export default function AdminPage() {
 
       <div className="tabs">
         <button className={tab === "dashboard" ? "on" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button className={tab === "analysis" ? "on" : ""} onClick={() => { setTab("analysis"); refresh(); }}>Analysis</button>
         <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")}>Sessions &amp; replay</button>
       </div>
 
       {tab === "dashboard" && (
         <div className="stack" style={{ gap: 22 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -12 }}>
+            <button className="pill-btn" onClick={refresh}>Refresh</button>
+          </div>
           <div className="statrow">
-            <div className="box"><b>{s.sessions.total}</b><span>sessions</span></div>
-            <div className="box"><b>{s.sessions.byStatus.completed ?? 0}</b><span>completed</span></div>
-            <div className="box"><b>{s.dropout.abandoned}</b><span>abandoned</span></div>
+            <div className="box"><b>{s.sessions.completed}</b><span>completed</span></div>
+            <div className="box"><b>{s.sessions.inProgress}</b><span>in progress</span></div>
             <div className="box"><b>{s.sessions.byAssignment.speaker ?? 0}</b><span>speakers</span></div>
             <div className="box"><b>{s.sessions.byAssignment.novice ?? 0}</b><span>novices</span></div>
             <div className="box"><b>{s.sessions.byAssignment.expert ?? 0}</b><span>experts</span></div>
             <div className="box"><b>{s.pool.utterances}</b><span>utterances</span></div>
           </div>
+          <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: "-8px 0 0" }}>
+            Speaker / novice / expert counts are <b>completed, real participants only</b> — test-name and
+            unfinished runs are excluded.
+          </p>
 
           <div className="card" style={{ padding: 16, overflowX: "auto" }}>
             <h4 style={{ margin: "0 0 10px", color: "var(--ink-soft)" }}>Condition cells (task × role)</h4>
@@ -159,6 +185,96 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === "analysis" && (
+        <div className="stack" style={{ gap: 22 }}>
+          {!analysis ? (
+            <p style={{ color: "var(--ink-soft)" }}>Loading analysis…</p>
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: 0 }}>
+                  Live — completed, real participants only. {analysis.generatedAt ? `Updated ${new Date(analysis.generatedAt).toLocaleTimeString()}.` : ""} Re-open the tab or hit Refresh to recompute.
+                </p>
+                <button className="pill-btn" onClick={refresh}>Refresh</button>
+              </div>
+
+              <div className="statrow">
+                <div className="box"><b>{analysis.participants.novice}</b><span>novices</span></div>
+                <div className="box"><b>{analysis.participants.expert}</b><span>experts</span></div>
+                <div className="box">
+                  <b>{analysis.overall.successGap == null ? "—" : `${analysis.overall.successGap > 0 ? "+" : ""}${Math.round(analysis.overall.successGap * 100)}pp`}</b>
+                  <span>expert − novice success</span>
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: 16, overflowX: "auto" }}>
+                <h4 style={{ margin: "0 0 4px", color: "var(--ink-soft)" }}>Novice vs Expert (success, effort)</h4>
+                <p style={{ color: "var(--ink-soft)", fontSize: 12, margin: "0 0 10px" }}>
+                  Gap = expert success − novice success (positive means the manipulation is separating them).
+                </p>
+                <table className="admin-table">
+                  <thead><tr><th>Task</th><th>Novice n</th><th>Novice succ.</th><th>Nov. moves</th><th>Expert n</th><th>Expert succ.</th><th>Exp. moves</th><th>Gap</th></tr></thead>
+                  <tbody>
+                    <tr style={{ fontWeight: 700 }}>
+                      <td>ALL</td>
+                      <td>{analysis.overall.novice.n}</td><td>{pct(analysis.overall.novice.successRate)}</td><td>{analysis.overall.novice.medianMoves ?? "—"}</td>
+                      <td>{analysis.overall.expert.n}</td><td>{pct(analysis.overall.expert.successRate)}</td><td>{analysis.overall.expert.medianMoves ?? "—"}</td>
+                      <td>{analysis.overall.successGap == null ? "—" : `${analysis.overall.successGap > 0 ? "+" : ""}${Math.round(analysis.overall.successGap * 100)}pp`}</td>
+                    </tr>
+                    {analysis.byTask.map((r) => (
+                      <tr key={r.taskId}>
+                        <td>{r.taskId}</td>
+                        <td>{r.novice.n}</td><td>{pct(r.novice.successRate)}</td><td>{r.novice.medianMoves ?? "—"}</td>
+                        <td>{r.expert.n}</td><td>{pct(r.expert.successRate)}</td><td>{r.expert.medianMoves ?? "—"}</td>
+                        <td>{r.successGap == null ? "—" : `${r.successGap > 0 ? "+" : ""}${Math.round(r.successGap * 100)}pp`}</td>
+                      </tr>
+                    ))}
+                    {analysis.overall.novice.n === 0 && analysis.overall.expert.n === 0 && (
+                      <tr><td colSpan={8} style={{ color: "var(--ink-soft)" }}>No completed listener trials yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="card" style={{ padding: 16 }}>
+                <h4 style={{ margin: "0 0 4px", color: "var(--ink-soft)" }}>Within-utterance contrast</h4>
+                <p style={{ color: "var(--ink-soft)", fontSize: 12, margin: "0 0 10px" }}>
+                  Of utterances heard by both a novice and an expert, how the two outcomes compared. Expert-advantage = the share where the expert succeeded and the novice didn't.
+                </p>
+                <div className="statrow">
+                  <div className="box"><b>{analysis.withinUtterance.paired}</b><span>paired utterances</span></div>
+                  <div className="box"><b>{analysis.withinUtterance.expertBetter}</b><span>expert &gt; novice</span></div>
+                  <div className="box"><b>{analysis.withinUtterance.noviceBetter}</b><span>novice &gt; expert</span></div>
+                  <div className="box"><b>{analysis.withinUtterance.same}</b><span>same outcome</span></div>
+                  <div className="box"><b>{pct(analysis.withinUtterance.expertAdvantage)}</b><span>expert-advantage</span></div>
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: 16, overflowX: "auto" }}>
+                <h4 style={{ margin: "0 0 4px", color: "var(--ink-soft)" }}>Perceived workload (NASA-TLX, 0–100; higher = harder)</h4>
+                <p style={{ color: "var(--ink-soft)", fontSize: 12, margin: "0 0 10px" }}>
+                  Mean of each trial's six-item average, by role. Rises when utterances leave the listener working harder.
+                </p>
+                <table className="admin-table">
+                  <thead><tr><th>Task</th><th>Novice TLX</th><th>Expert TLX</th></tr></thead>
+                  <tbody>
+                    <tr style={{ fontWeight: 700 }}>
+                      <td>ALL</td><td>{analysis.workload.novice ?? "—"}</td><td>{analysis.workload.expert ?? "—"}</td>
+                    </tr>
+                    {analysis.workload.byTask.map((r) => (
+                      <tr key={r.taskId}><td>{r.taskId}</td><td>{r.novice ?? "—"}</td><td>{r.expert ?? "—"}</td></tr>
+                    ))}
+                    {analysis.workload.novice == null && analysis.workload.expert == null && (
+                      <tr><td colSpan={3} style={{ color: "var(--ink-soft)" }}>No TLX responses yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
 
