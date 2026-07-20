@@ -138,6 +138,24 @@ export async function countAssignments(): Promise<Record<"speaker" | "novice" | 
   return out;
 }
 
+/** Counts per assignment cell of runs that actually FINISHED (status = completed) —
+ *  the basis for completion-based recruitment. Counting completions (not started
+ *  sessions) makes recruitment robust to abandonment and to sessions being purged:
+ *  a role's quota only advances once that many participants have truly finished. */
+export async function countCompletedAssignments(): Promise<Record<"speaker" | "novice" | "expert", number>> {
+  const db = await getDb();
+  const rows = (await db
+    .select({ assignment: sessions.assignment, n: count() })
+    .from(sessions)
+    .where(eq(sessions.status, "completed"))
+    .groupBy(sessions.assignment)) as Array<{ assignment: string | null; n: number }>;
+  const out = { speaker: 0, novice: 0, expert: 0 };
+  for (const r of rows) {
+    if (r.assignment && r.assignment in out) out[r.assignment as keyof typeof out] = Number(r.n);
+  }
+  return out;
+}
+
 export async function endSession(
   id: string,
   status: "completed" | "abandoned" | "screened_out",
@@ -236,10 +254,65 @@ export async function deleteSessionsByPid(
   return result;
 }
 
-/** Roll back pool bookkeeping for a set of sessions, then delete every trace of them
- *  (children → sessions → orphaned participants). Shared by the purge and by targeted
- *  deletes. A purged listener's serves/outcomes must be handed back to the utterances
- *  they touched, or the draw balance and speaker bonus keep counting vanished data. */
+/**
+ * Recompute EVERY utterance's pool counters from the trials that reference it — the
+ * single source of truth. Fixes any drift (e.g. a session removed before counter
+ * rollback existed left phantom completions). Idempotent: run it any time.
+ *   servedNovice/Expert   = draws by that condition (one trial row per draw)
+ *   completedNovice/Expert= terminated trials of that condition
+ *   listenerTrials/Success= terminated listener trials (any condition) + those correct
+ *   timesServed           = all draws
+ * Returns how many utterance rows it changed.
+ */
+export async function reconcileUtteranceCounters(): Promise<{ utterances: number; changed: number }> {
+  const db = await getDb();
+  const us = (await db.select().from(utterances)) as UtteranceRow[];
+  const ts = (await db.select().from(trials)) as TrialRow[];
+  const byUtt = new Map<number, TrialRow[]>();
+  for (const t of ts) {
+    if (t.utteranceId == null) continue;
+    (byUtt.get(t.utteranceId) ?? byUtt.set(t.utteranceId, []).get(t.utteranceId)!).push(t);
+  }
+  let changed = 0;
+  for (const u of us) {
+    const rel = byUtt.get(u.id) ?? [];
+    const nov = rel.filter((t) => t.assignment === "novice");
+    const exp = rel.filter((t) => t.assignment === "expert");
+    const lis = rel.filter((t) => t.assignment !== "speaker"); // novice/expert/unassigned
+    const ended = (arr: TrialRow[]) => arr.filter((t) => !!t.endedAt);
+    const litTerm = ended(lis);
+    const next = {
+      timesServed: rel.length,
+      servedNovice: nov.length,
+      servedExpert: exp.length,
+      completedNovice: ended(nov).length,
+      completedExpert: ended(exp).length,
+      listenerTrials: litTerm.length,
+      listenerSuccesses: litTerm.filter((t) => t.correct === true).length,
+    };
+    const successRate = next.listenerTrials ? next.listenerSuccesses / next.listenerTrials : null;
+    const dirty =
+      u.timesServed !== next.timesServed ||
+      u.servedNovice !== next.servedNovice ||
+      u.servedExpert !== next.servedExpert ||
+      u.completedNovice !== next.completedNovice ||
+      u.completedExpert !== next.completedExpert ||
+      u.listenerTrials !== next.listenerTrials ||
+      u.listenerSuccesses !== next.listenerSuccesses ||
+      (u.successRate ?? null) !== successRate;
+    if (dirty) {
+      await db.update(utterances).set({ ...next, successRate }).where(eq(utterances.id, u.id));
+      changed += 1;
+    }
+  }
+  return { utterances: us.length, changed };
+}
+
+/** Delete every trace of a set of sessions (children → sessions → orphaned
+ *  participants), then RECONCILE the pool counters from the surviving trials. Shared
+ *  by the purge and by targeted deletes. Recomputing (rather than decrementing) means
+ *  a removed run's serves/outcomes are handed back AND any pre-existing counter drift
+ *  is healed in the same pass. */
 async function eraseSessions(
   db: any,
   ids: string[],
@@ -251,49 +324,15 @@ async function eraseSessions(
     .where(inArray(sessions.id, ids))) as Array<{ pid: string }>;
   const pids = new Set(owners.map((r) => r.pid));
 
-  // Give back every serve/outcome these runs contributed to the pool.
-  const doomed = (await db.select().from(trials).where(inArray(trials.sessionId, ids))) as TrialRow[];
-  let utterancesAdjusted = 0;
-  for (const t of doomed) {
-    if (t.utteranceId == null) continue;
-    const [u] = (await db
-      .select()
-      .from(utterances)
-      .where(eq(utterances.id, t.utteranceId))) as UtteranceRow[];
-    if (!u) continue;
-    const cond = t.assignment === "novice" || t.assignment === "expert" ? t.assignment : null;
-    const ended = !!t.endedAt; // only terminated trials ever incremented the outcome counts
-    const listenerTrials = Math.max(0, u.listenerTrials - (ended ? 1 : 0));
-    const listenerSuccesses = Math.max(0, u.listenerSuccesses - (ended && t.correct ? 1 : 0));
-    await db
-      .update(utterances)
-      .set({
-        timesServed: Math.max(0, u.timesServed - 1),
-        ...(cond === "novice"
-          ? {
-              servedNovice: Math.max(0, u.servedNovice - 1),
-              completedNovice: Math.max(0, u.completedNovice - (ended ? 1 : 0)),
-            }
-          : cond === "expert"
-            ? {
-                servedExpert: Math.max(0, u.servedExpert - 1),
-                completedExpert: Math.max(0, u.completedExpert - (ended ? 1 : 0)),
-              }
-            : {}),
-        listenerTrials,
-        listenerSuccesses,
-        successRate: listenerTrials ? listenerSuccesses / listenerTrials : null,
-      })
-      .where(eq(utterances.id, u.id));
-    utterancesAdjusted += 1;
-  }
-
   // Children first, then the session rows themselves.
   await db.delete(events).where(inArray(events.sessionId, ids));
   await db.delete(trials).where(inArray(trials.sessionId, ids));
   await db.delete(surveys).where(inArray(surveys.sessionId, ids));
   await db.delete(utterances).where(inArray(utterances.authorSessionId, ids));
   await db.delete(sessions).where(inArray(sessions.id, ids));
+
+  // Recompute pool counters from what remains (rolls back the deleted runs + heals drift).
+  const { changed } = await reconcileUtteranceCounters();
 
   // Orphan participants: those whose every session was just deleted.
   const remaining = (await db.select({ pid: sessions.prolificPid }).from(sessions)) as Array<{ pid: string }>;
@@ -302,7 +341,7 @@ async function eraseSessions(
   if (orphanPids.length) {
     await db.delete(participants).where(inArray(participants.prolificPid, orphanPids));
   }
-  return { sessions: ids.length, participants: orphanPids.length, utterancesAdjusted };
+  return { sessions: ids.length, participants: orphanPids.length, utterancesAdjusted: changed };
 }
 
 // ── Events (the firehose) ────────────────────────────────────────────────────

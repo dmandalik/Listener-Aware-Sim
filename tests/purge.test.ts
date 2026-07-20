@@ -22,6 +22,7 @@ import {
   insertUtterance,
   openTrial,
   purgeIncompleteSessions,
+  reconcileUtteranceCounters,
   startSession,
   upsertParticipant,
   upsertSurvey,
@@ -141,10 +142,12 @@ describe("purgeIncompleteSessions", () => {
     const keeper = await makeRun("NOV", {
       finishedGames: true, idleMinutes: 300, role: "listener", assignment: "novice",
     });
-    await openTrial({
+    const keeperTrial = await openTrial({
       sessionId: keeper, trialIndex: 0, taskId: "retrieval", seed: 1, condition: {},
       assignment: "novice", utteranceId: uid,
     });
+    // The novice completed their trial successfully (so the counters above are real).
+    await db.update(trials).set({ endedAt: new Date(), correct: true }).where(eq(trials.id, keeperTrial));
     const doomed = await makeRun("EXP", {
       finishedGames: false, idleMinutes: 300, role: "listener", assignment: "expert",
     });
@@ -229,6 +232,46 @@ describe("purgeIncompleteSessions", () => {
     expect(u.completedNovice).toBe(0);
     expect(u.listenerTrials).toBe(0);
     expect(u.successRate).toBeNull();
+  });
+
+  it("reconcile heals inflated counters from the actual trials", async () => {
+    const db = await getDb();
+    const speaker = await makeRun("REC_SPK", { finishedGames: true, idleMinutes: 1 });
+    const uid = await insertUtterance({
+      taskId: "retrieval", seed: 7, scene: "s7", text: "hi", authorSessionId: speaker, authorPid: "REC_SPK",
+    });
+    // Poison the counters as if a removed session left phantom completions behind.
+    await db.update(utterances).set({
+      timesServed: 9, servedNovice: 5, servedExpert: 4, completedNovice: 5, completedExpert: 4,
+      listenerTrials: 9, listenerSuccesses: 9, successRate: 1,
+    }).where(eq(utterances.id, uid));
+
+    // Reality: exactly ONE terminated novice trial (correct) references it.
+    const lis = await makeRun("REC_NOV", {
+      finishedGames: true, idleMinutes: 1, role: "listener", assignment: "novice",
+    });
+    const tId = await openTrial({
+      sessionId: lis, trialIndex: 0, taskId: "retrieval", seed: 7, condition: {},
+      assignment: "novice", utteranceId: uid,
+    });
+    await db.update(trials).set({ endedAt: new Date(), correct: true }).where(eq(trials.id, tId));
+
+    const res = await reconcileUtteranceCounters();
+    expect(res.changed).toBeGreaterThanOrEqual(1);
+
+    const [u] = (await db.select().from(utterances).where(eq(utterances.id, uid))) as any[];
+    expect(u.timesServed).toBe(1);
+    expect(u.servedNovice).toBe(1);
+    expect(u.servedExpert).toBe(0);
+    expect(u.completedNovice).toBe(1);
+    expect(u.completedExpert).toBe(0);
+    expect(u.listenerTrials).toBe(1);
+    expect(u.listenerSuccesses).toBe(1);
+    expect(u.successRate).toBe(1);
+
+    // Idempotent: a second run changes nothing.
+    const again = await reconcileUtteranceCounters();
+    expect(again.changed).toBe(0);
   });
 
   it("does not roll back outcomes for a trial that never terminated", async () => {

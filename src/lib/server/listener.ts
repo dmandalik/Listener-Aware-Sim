@@ -21,7 +21,7 @@ import {
   loadRecruitment,
   loadStudy,
   loadStudyPlan,
-  roleForArrival,
+  roleForCompletions,
   type ResolvedStudy,
   type ResolvedTrial,
 } from "@/lib/config";
@@ -29,7 +29,7 @@ import { ensureMigrated, getDb } from "@/lib/db/client";
 import { trials, sessions, utterances } from "@/lib/db/schema";
 import {
   closeTrial,
-  countAssignments,
+  countCompletedAssignments,
   countUtterances,
   drawUtterance,
   endSession,
@@ -975,14 +975,14 @@ export async function goToSpeakerTrial(
 // ── Balanced role assignment (single entry: /play) ────────────────────────────
 
 /**
- * The next role, per the recruitment policy (src/config/recruitment.json): the
- * Kth arrival gets the covering batch's role, cycling. With the default batches
- * this recruits all speakers first (so the pool is full before any listener).
+ * The next role, per the recruitment policy (src/config/recruitment.json). Based on
+ * how many of each role have actually COMPLETED, so the study keeps recruiting a role
+ * until its quota is genuinely filled — robust to abandonment and purging. With the
+ * default batches this recruits all speakers to completion before any listener.
  */
 async function pickAssignment(): Promise<Assignment> {
-  const counts = await countAssignments();
-  const total = counts.speaker + counts.novice + counts.expert;
-  return roleForArrival(loadRecruitment(), total);
+  const completed = await countCompletedAssignments();
+  return roleForCompletions(loadRecruitment(), completed);
 }
 
 export interface AssignResult {

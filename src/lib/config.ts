@@ -315,6 +315,33 @@ export function roleForArrival(
   return recruitment.batches[0]!.role; // unreachable
 }
 
+/**
+ * The next role, based on how many participants have actually COMPLETED each role
+ * (not how many sessions were started). Keeps assigning a batch's role until that
+ * many of that role have finished, then moves to the next batch — so the study
+ * reliably fills 5 speakers, then 5 novices, then 5 experts (per cycle), no matter
+ * how many people abandon or get purged along the way.
+ *
+ * Note: under a burst of simultaneous arrivals before anyone finishes, several people
+ * can be assigned the same role at once (mild over-recruitment). That's the safe
+ * direction — extra COMPLETED participants only add data — and is a non-issue for
+ * sequential/lab recruiting. It never under-fills a quota.
+ */
+export function roleForCompletions(
+  recruitment: Recruitment,
+  completed: Record<"speaker" | "novice" | "expert", number>,
+): "speaker" | "novice" | "expert" {
+  // How many full cycles are done: the min completed-cycles across all batches.
+  const cyclesDone = Math.min(
+    ...recruitment.batches.map((b) => Math.floor((completed[b.role] ?? 0) / b.count)),
+  );
+  const target = cyclesDone + 1; // filling the (cyclesDone+1)-th copy of each batch
+  for (const b of recruitment.batches) {
+    if ((completed[b.role] ?? 0) < target * b.count) return b.role;
+  }
+  return recruitment.batches[0]!.role; // unreachable
+}
+
 // ── Repair diagram (§5) ──────────────────────────────────────────────────────
 // A 2-D robot diagram: components at fixed positions the listener clicks. Two (or
 // more) components deliberately share a `shape` (the visual trap) so a bare visual
