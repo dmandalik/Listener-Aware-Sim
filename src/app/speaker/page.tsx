@@ -108,6 +108,23 @@ export default function SpeakerPage() {
     [payload, begin],
   );
 
+  // Back from a scene lands on the PREVIOUS page in the flow, which is now that
+  // earlier scene's questionnaire (scenes and questionnaires alternate). Load the
+  // earlier scene, then show its questionnaire; from there Back again returns to the
+  // scene itself, so the whole path retraces one page at a time.
+  const backToPrevSurvey = useCallback(async () => {
+    if (!payload || payload.trialIndex === 0) return;
+    try {
+      const p = await post("/api/speaker/goto", { sessionId: payload.sessionId, index: payload.trialIndex - 1 });
+      setPayload(p);
+      setSavedThisTrial(!!p.speaker?.savedUtterance);
+      setPhase("trialSurvey");
+    } catch (e) {
+      setError((e as Error).message);
+      setPhase("error");
+    }
+  }, [payload]);
+
   if (phase === "loading") {
     return (
       <main className="center-screen">
@@ -140,6 +157,7 @@ export default function SpeakerPage() {
         missionTotal={payload.missionTotal}
         role="speaker"
         onDone={() => goTo(payload.trialIndex + 1)}
+        onBack={() => setPhase("composing")}
       />
     );
   }
@@ -226,9 +244,9 @@ export default function SpeakerPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
         <button
           className="btn ghost"
-          onClick={() => goTo(payload.trialIndex - 1)}
-          disabled={payload.trialIndex === 0}
-          style={{ visibility: payload.trialIndex === 0 ? "hidden" : "visible" }}
+          // Scene 0 goes back to the directions; any later scene goes back to the
+          // previous page, which is the earlier scene's questionnaire.
+          onClick={payload.trialIndex === 0 ? () => setPhase("intro") : backToPrevSurvey}
         >
           ← Back
         </button>

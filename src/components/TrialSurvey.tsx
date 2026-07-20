@@ -46,6 +46,7 @@ export function TrialSurvey({
   missionTotal,
   role,
   onDone,
+  onBack,
 }: {
   sessionId: string;
   trialIndex: number;
@@ -54,6 +55,9 @@ export function TrialSurvey({
   missionTotal: number;
   role: "speaker" | "listener";
   onDone: () => void;
+  // Optional: go back to the page before this questionnaire (the speaker's compose
+  // scene). Omitted for listeners, who can't return into a played game.
+  onBack?: () => void;
 }) {
   const extras = role === "speaker" ? SPEAKER_EXTRAS : LISTENER_EXTRAS;
   // Every slider starts at the neutral midpoint so it always counts as answered.
@@ -232,7 +236,10 @@ export function TrialSurvey({
         </Section>
 
         {error && <p style={{ color: "var(--alert)", marginBottom: 10 }}>{error}</p>}
-        <div style={{ display: "grid", placeItems: "center", marginBottom: 40 }}>
+        <div style={{ display: "flex", justifyContent: onBack ? "space-between" : "center", alignItems: "center", marginBottom: 40 }}>
+          {onBack && (
+            <button className="btn ghost" onClick={onBack} disabled={saving}>← Back</button>
+          )}
           {/* On the last trial, advance to the separate feedback page instead of
               submitting here; every other trial submits and moves on. */}
           <button className="btn" onClick={isLast ? () => { setError(null); setShowFeedback(true); } : submit} disabled={saving}>
