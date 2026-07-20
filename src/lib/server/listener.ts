@@ -214,23 +214,23 @@ const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
   retrieval: {
     description:
       "A helper robot has broken down in this building and needs one part brought to it. " +
-      "The person who fetches it can only see the room they are standing in — they don't know " +
+      "The person who fetches it can only see the room they are standing in. They don't know " +
       "the layout, and they don't know what any part is. They move one tile at a time using the " +
       "arrow keys or WASD, and click a part to pick it up. You can see everything: the full map, " +
       "with the target part highlighted.",
     prompt:
       "Write ONE message telling this helper how to find and pick up the highlighted part. " +
-      "You get a single message — make it count.",
+      "You get a single message, so make it count.",
   },
   teleop: {
     description:
       "Someone will drive this robot to the goal (highlighted below). They drive by pressing keys on " +
-      "their keyboard — one step per press — but they cannot see the goal, and the drive keys are random " +
+      "their keyboard, one step per press, but they cannot see the goal, and the drive keys are random " +
       "letters they don't know. You can see everything: the whole grid, the goal, and which letter moves " +
       "the robot which way.",
     prompt:
-      "Write ONE message that gets the driver to the goal. Let your instructions contain the route, the keys, or both " +
-      "— but you only get a single message.",
+      "Write ONE message that gets the driver to the goal. Let your instructions contain the route, the keys, or both, " +
+      "but you only get a single message.",
   },
   repair: {
     description:

@@ -86,7 +86,7 @@ export function TrialSurvey({
         <h1 style={{ textAlign: "center", margin: "0 0 6px" }}>Quick check-in</h1>
         <p style={{ textAlign: "center", color: "var(--ink-soft)", marginBottom: 22 }}>
           {isLast
-            ? "Last one — how did that final round feel?"
+            ? "Last one. How did that final round feel?"
             : `How did that round feel? (round ${missionNumber} of ${missionTotal})`}
         </p>
 

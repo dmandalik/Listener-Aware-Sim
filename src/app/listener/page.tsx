@@ -17,11 +17,11 @@ function gameIntro(missionTotal: number): React.ReactNode {
   const perGame = Math.max(1, Math.round(missionTotal / 3));
   return (
     <>
-      This study has <strong>3 short games</strong> — driving a robot, repairing a robot, and fetching a part —
+      This study has <strong>3 short games</strong>: driving a robot, repairing a robot, and fetching a part,
       with <strong>{perGame} round{perGame === 1 ? "" : "s"} each</strong> ({missionTotal} in total). In every round a
       robot sends you <strong>one message</strong>, and your job is to do exactly what it says. Each game starts with
       its own quick how-to. <strong>After every round you'll answer a few quick questions</strong> about how that
-      round felt — it only takes a moment.
+      round felt. It only takes a moment.
     </>
   );
 }
@@ -48,17 +48,17 @@ function taskGuide(taskId: string, isExpert: boolean): { steps: React.ReactNode[
         <>In this game you <strong>drive a robot to a goal</strong>. {oneMessage}</>,
         isExpert ? (
           <>
-            <strong>You can’t see the goal</strong> — the message describes where it is using the objects on the
+            <strong>You can’t see the goal</strong>. The message describes where it is using the objects on the
             board. Your key list shows which letter moves the robot which way.
           </>
         ) : (
           <>
-            <strong>You can’t see the goal</strong> — the message describes where it is using the objects on the
+            <strong>You can’t see the goal</strong>. The message describes where it is using the objects on the
             board. The move keys are <strong>unlabeled letters</strong>, so part of the task is figuring out which
             key goes which way.
           </>
         ),
-        <>Press the letter keys to move. <strong>Every press is one move — don’t waste them.</strong></>,
+        <>Press the letter keys to move. <strong>Every press is one move, so don’t waste them.</strong></>,
       ],
     };
   }
@@ -89,13 +89,13 @@ function taskGuide(taskId: string, isExpert: boolean): { steps: React.ReactNode[
         </>
       ) : (
         <>
-          You can <strong>only see inside the room you’re in</strong> — you won’t know a room’s name until you enter
+          You can <strong>only see inside the room you’re in</strong>. You won’t know a room’s name until you enter
           it, and you have no parts list, just their shapes.
         </>
       ),
       <>
         Move with the <strong>arrow keys or WASD</strong> to explore. When you find the item the message means,{" "}
-        <strong>click it to pick it up</strong>. <strong>You get 3 tries</strong> — a wrong pick costs one.
+        <strong>click it to pick it up</strong>. <strong>You get 3 tries</strong>, and a wrong pick costs one.
       </>,
     ],
   };
@@ -369,7 +369,7 @@ export default function ListenerPage() {
           </div>
           <h1 style={{ margin: "6px 0 8px" }}>All missions complete!</h1>
           <p style={{ color: "var(--ink-soft)", marginBottom: 20 }}>
-            Thank you — your data has been recorded.
+            Thank you. Your data has been recorded.
           </p>
           {redirect && completeUrl && (
             <a className="btn" href={completeUrl} style={{ display: "inline-block", textDecoration: "none" }}>
@@ -494,7 +494,7 @@ export default function ListenerPage() {
                         <span className="step">Tries left: {rw.triesLeft}</span>
                         {la && (
                           <span className={`feedback ${la.correct ? "ok" : "bad"}`}>
-                            {la.correct ? "✓ connected!" : "✗ those don't connect — try again"}
+                            {la.correct ? "✓ connected!" : "✗ those don't connect, try again"}
                           </span>
                         )}
                       </div>
@@ -591,7 +591,7 @@ export default function ListenerPage() {
                   </div>
                   {world.lastWrong && (
                     <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: "var(--alert)" }}>
-                      ✗ wrong part — that used an attempt
+                      ✗ wrong part, that used an attempt
                     </div>
                   )}
                 </div>
@@ -628,14 +628,14 @@ export default function ListenerPage() {
             <div style={{ display: "grid", placeItems: "center", marginBottom: 6 }}>
               <RobotAvatar mood="hopeful" size={72} />
             </div>
-            <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>{taskTitle(payload.taskId)} — how to play</h2>
+            <h2 style={{ textAlign: "center", margin: "0 0 14px" }}>{taskTitle(payload.taskId)}: how to play</h2>
             <ol style={{ margin: "0 0 14px", paddingLeft: 20, lineHeight: 1.55, color: "var(--ink)" }}>
               {guide.steps.map((s, i) => (
                 <li key={i} style={{ marginBottom: 8 }}>{s}</li>
               ))}
             </ol>
             <div className="banner-alert" style={{ background: "var(--accent-wash)", border: "1px solid var(--accent)", color: "var(--accent-ink)" }}>
-              ⏱ The timer is your <b>time limit</b> — but <b>faster is better</b>. Your speed is
+              ⏱ The timer is your <b>time limit</b>, but <b>faster is better</b>. Your speed is
               recorded, so finish as quickly as you can.
             </div>
             <div style={{ display: "grid", placeItems: "center", marginTop: 18 }}>
