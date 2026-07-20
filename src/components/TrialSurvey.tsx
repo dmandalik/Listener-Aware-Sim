@@ -1,27 +1,23 @@
 "use client";
 
-// End-of-study survey: NASA-TLX (raw, 0–100 per item) + one open-ended feedback
-// question. Shown after the final round for speakers and listeners. Demographics
-// are collected up front (entry page), not here. Saves to /api/survey; calls
-// onDone() when submitted.
+// Per-trial NASA-TLX (raw, 0–100 per item), shown after EACH trial so workload can be
+// compared across tasks/utterances. The open-ended feedback box appears ONLY on the
+// final trial. Saves to /api/trial-survey; calls onDone() when submitted.
 
 import { useState } from "react";
 import { RobotAvatar } from "@/components/RobotAvatar";
 
 const TLX = [
-  { key: "tlxMental", label: "Mental demand", q: "How mentally demanding were the games?", lo: "Very low", hi: "Very high" },
-  { key: "tlxPhysical", label: "Physical demand", q: "How physically demanding were the games?", lo: "Very low", hi: "Very high" },
+  { key: "tlxMental", label: "Mental demand", q: "How mentally demanding was this round?", lo: "Very low", hi: "Very high" },
+  { key: "tlxPhysical", label: "Physical demand", q: "How physically demanding was this round?", lo: "Very low", hi: "Very high" },
   { key: "tlxTemporal", label: "Temporal demand", q: "How hurried or rushed did the pace feel?", lo: "Very low", hi: "Very high" },
-  // Displayed intuitively (drag right = did better): Failure at the left, Perfect at
-  // the right. Stored in the canonical NASA-TLX orientation (higher = worse) via the
-  // reverse-score at submit, so all six items and the composite stay consistent.
   { key: "tlxPerformance", label: "Performance", q: "How successful were you at doing what you were asked to do?", lo: "Failure", hi: "Perfect" },
-  { key: "tlxEffort", label: "Effort", q: "How hard did you have to work to reach your level of performance?", lo: "Very low", hi: "Very high" },
-  { key: "tlxFrustration", label: "Frustration", q: "How insecure, discouraged, irritated, or stressed did you feel?", lo: "Very low", hi: "Very high" },
+  { key: "tlxEffort", label: "Effort", q: "How hard did you have to work to accomplish your level of performance?", lo: "Very low", hi: "Very high" },
+  { key: "tlxFrustration", label: "Frustration", q: "How insecure, discouraged, irritated, or stressed were you?", lo: "Very low", hi: "Very high" },
 ] as const;
 
-// Module-level (stable identity) so children — incl. the feedback textarea — never
-// remount on state change, which would drop input focus.
+// Module-level (stable identity) so the feedback textarea never remounts on state
+// change, which would drop input focus.
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="card" style={{ padding: 20, marginBottom: 16 }}>
@@ -31,10 +27,22 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: () => void }) {
-  // Every slider starts at a real value (the neutral midpoint) so it always counts
-  // as answered and never blocks Submit — a participant who agrees with the middle
-  // doesn't have to nudge it, and a click that lands back on 50 still registers.
+export function TrialSurvey({
+  sessionId,
+  trialIndex,
+  isLast,
+  missionNumber,
+  missionTotal,
+  onDone,
+}: {
+  sessionId: string;
+  trialIndex: number;
+  isLast: boolean;
+  missionNumber: number;
+  missionTotal: number;
+  onDone: () => void;
+}) {
+  // Every slider starts at the neutral midpoint so it always counts as answered.
   const [tlx, setTlx] = useState<Record<string, number>>(() =>
     Object.fromEntries(TLX.map((t) => [t.key, 50])),
   );
@@ -47,21 +55,18 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/survey", {
+      const res = await fetch("/api/trial-survey", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          feedback: feedback || null,
-          // Performance is shown with Perfect on the right (higher slider = did better),
-          // but NASA-TLX scores it higher = worse; reverse it so the stored value and
-          // the composite match the other five dimensions.
+          trialIndex,
+          // Performance is shown Failure→Perfect (drag right = better); store canonical
+          // NASA-TLX (higher = worse) so all six items and the average stay consistent.
           ...Object.fromEntries(
-            TLX.map((t) => {
-              const v = tlx[t.key] ?? 50;
-              return [t.key, t.key === "tlxPerformance" ? 100 - v : v];
-            }),
+            TLX.map((t) => [t.key, t.key === "tlxPerformance" ? 100 - (tlx[t.key] ?? 50) : tlx[t.key]]),
           ),
+          ...(isLast ? { feedback: feedback || null } : {}),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "save failed");
@@ -76,17 +81,18 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
     <main className="center-screen" style={{ alignItems: "flex-start", padding: "32px 20px" }}>
       <div style={{ width: "min(620px, 94vw)", margin: "0 auto" }}>
         <div style={{ display: "grid", placeItems: "center", marginBottom: 10 }}>
-          <RobotAvatar mood="thanking" size={64} />
+          <RobotAvatar mood={isLast ? "thanking" : "hopeful"} size={64} />
         </div>
-        <h1 style={{ textAlign: "center", margin: "0 0 6px" }}>A few quick questions</h1>
+        <h1 style={{ textAlign: "center", margin: "0 0 6px" }}>Quick check-in</h1>
         <p style={{ textAlign: "center", color: "var(--ink-soft)", marginBottom: 22 }}>
-          Almost done — this helps us understand and improve the games.
+          {isLast
+            ? "Last one — how did that final round feel?"
+            : `How did that round feel? (round ${missionNumber} of ${missionTotal})`}
         </p>
 
-        <Section title="How the games felt">
+        <Section title="How this round felt">
           <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "0 0 14px" }}>
-            Thinking about the games you just played, drag each slider to where it fits. Each starts at the
-            middle — adjust the ones you'd rate higher or lower.
+            Drag each slider to where it fits for the round you just did. Each starts in the middle.
           </p>
           {TLX.map((t) => (
             <div key={t.key} style={{ marginBottom: 18 }}>
@@ -114,33 +120,35 @@ export function EndSurvey({ sessionId, onDone }: { sessionId: string; onDone: ()
           ))}
         </Section>
 
-        <Section title="Your feedback">
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>
-            In a sentence or two, what worked well and what (if anything) was confusing or frustrating?
-          </div>
-          <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            maxLength={2000}
-            rows={3}
-            placeholder="e.g., the driving game was clear, but I found the repair parts hard to tell apart…"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid var(--line)",
-              fontSize: 15,
-              fontFamily: "var(--font-sans)",
-              resize: "vertical",
-              minHeight: 72,
-            }}
-          />
-        </Section>
+        {isLast && (
+          <Section title="Your feedback">
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              In a sentence or two, what worked well and what (if anything) was confusing or frustrating?
+            </div>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              maxLength={2000}
+              rows={3}
+              placeholder="e.g., the driving game was clear, but I found the repair parts hard to tell apart…"
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                fontSize: 15,
+                fontFamily: "var(--font-sans)",
+                resize: "vertical",
+                minHeight: 72,
+              }}
+            />
+          </Section>
+        )}
 
         {error && <p style={{ color: "var(--alert)", marginBottom: 10 }}>{error}</p>}
         <div style={{ display: "grid", placeItems: "center", marginBottom: 40 }}>
           <button className="btn" onClick={submit} disabled={saving}>
-            {saving ? "Submitting…" : "Submit & finish →"}
+            {saving ? "Saving…" : isLast ? "Submit & finish →" : "Continue →"}
           </button>
         </div>
       </div>

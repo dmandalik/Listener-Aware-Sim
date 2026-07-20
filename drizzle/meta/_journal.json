@@ -92,6 +92,13 @@
       "when": 1784223458903,
       "tag": "0012_breezy_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784569791488,
+      "tag": "0013_hesitant_the_anarchist",
+      "breakpoints": true
     }
   ]
 }

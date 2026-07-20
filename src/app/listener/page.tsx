@@ -6,10 +6,10 @@ import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
 import { TeleopBoard, Keypad, type TeleopListenerWorld } from "@/components/TeleopBoard";
 import { RepairDiagram, type RepairWorldView } from "@/components/RepairDiagram";
 import { RobotAvatar, type RobotMood } from "@/components/RobotAvatar";
-import { EndSurvey } from "@/components/EndSurvey";
+import { TrialSurvey } from "@/components/TrialSurvey";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 
-type Phase = "loading" | "intro" | "taskIntro" | "playing" | "trialEnd" | "survey" | "done" | "error";
+type Phase = "loading" | "intro" | "taskIntro" | "playing" | "trialEnd" | "trialSurvey" | "done" | "error";
 
 // Overall game overview — shown ONCE before the first round. No task specifics
 // (those live in the per-task pop-up), just the structure of the whole study.
@@ -20,7 +20,8 @@ function gameIntro(missionTotal: number): React.ReactNode {
       This study has <strong>3 short games</strong> — driving a robot, repairing a robot, and fetching a part —
       with <strong>{perGame} round{perGame === 1 ? "" : "s"} each</strong> ({missionTotal} in total). In every round a
       robot sends you <strong>one message</strong>, and your job is to do exactly what it says. Each game starts with
-      its own quick how-to.
+      its own quick how-to. <strong>After every round you'll answer a few quick questions</strong> about how that
+      round felt — it only takes a moment.
     </>
   );
 }
@@ -312,7 +313,7 @@ export default function ListenerPage() {
     try {
       const p = await post("/api/listener/next", { sessionId: payload.sessionId });
       if (p.done) {
-        setPhase("survey");
+        setPhase("done");
       } else {
         beginTrial(p);
       }
@@ -346,8 +347,17 @@ export default function ListenerPage() {
     );
   }
 
-  if (phase === "survey" && payload) {
-    return <EndSurvey sessionId={payload.sessionId} onDone={() => setPhase("done")} />;
+  if (phase === "trialSurvey" && payload) {
+    return (
+      <TrialSurvey
+        sessionId={payload.sessionId}
+        trialIndex={payload.trialIndex}
+        isLast={payload.missionNumber >= payload.missionTotal}
+        missionNumber={payload.missionNumber}
+        missionTotal={payload.missionTotal}
+        onDone={goNext}
+      />
+    );
   }
 
   if (phase === "done") {
@@ -664,8 +674,8 @@ export default function ListenerPage() {
                 <p>On to the next one.</p>
               </>
             )}
-            <button className="btn" onClick={goNext}>
-              {payload.missionNumber >= payload.missionTotal ? "Finish" : "Next mission →"}
+            <button className="btn" onClick={() => setPhase("trialSurvey")}>
+              Continue &rarr;
             </button>
           </div>
         </div>

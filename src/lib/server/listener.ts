@@ -43,6 +43,7 @@ import {
   startSession,
   upsertParticipant,
   upsertSurvey,
+  upsertTrialSurvey,
   writeEvent,
   type SurveyArgs,
 } from "@/lib/db/writer";
@@ -1094,4 +1095,52 @@ export async function saveSurvey(
   if (!sess) throw new Error(`Unknown session "${args.sessionId}"`);
   const role = (sess.assignment as "speaker" | "novice" | "expert" | null) ?? null;
   await upsertSurvey({ ...args, prolificPid: sess.prolificPid, role });
+}
+
+/** Save the NASA-TLX workload rating for ONE trial. Denormalizes the trial's task /
+ *  layout / scene / utterance from the trial row so the TLX export is analyzable on
+ *  its own. `feedback` is only sent with the final trial and lands on the session's
+ *  survey row. */
+export async function saveTrialSurvey(args: {
+  sessionId: string;
+  trialIndex: number;
+  tlxMental: number;
+  tlxPhysical: number;
+  tlxTemporal: number;
+  tlxPerformance: number;
+  tlxEffort: number;
+  tlxFrustration: number;
+  feedback?: string | null;
+}): Promise<void> {
+  await ready();
+  const db = await getDb();
+  const [sess] = await db.select().from(sessions).where(eq(sessions.id, args.sessionId));
+  if (!sess) throw new Error(`Unknown session "${args.sessionId}"`);
+  const row = await loadTrialRow(args.sessionId, args.trialIndex);
+  await upsertTrialSurvey({
+    sessionId: args.sessionId,
+    trialIndex: args.trialIndex,
+    prolificPid: sess.prolificPid,
+    assignment: (sess.assignment as "speaker" | "novice" | "expert" | null) ?? null,
+    taskId: (row?.taskId as "retrieval" | "repair" | "teleop" | undefined) ?? null,
+    layout: row?.layout ?? null,
+    scene: row?.scene ?? null,
+    utteranceId: row?.utteranceId ?? null,
+    speakerPid: row?.speakerPid ?? null,
+    tlxMental: args.tlxMental,
+    tlxPhysical: args.tlxPhysical,
+    tlxTemporal: args.tlxTemporal,
+    tlxPerformance: args.tlxPerformance,
+    tlxEffort: args.tlxEffort,
+    tlxFrustration: args.tlxFrustration,
+  });
+  // Open-ended feedback is asked once, on the final trial → session survey row.
+  if (args.feedback != null && args.feedback !== "") {
+    await upsertSurvey({
+      sessionId: args.sessionId,
+      prolificPid: sess.prolificPid,
+      role: (sess.assignment as "speaker" | "novice" | "expert" | null) ?? null,
+      feedback: args.feedback,
+    });
+  }
 }

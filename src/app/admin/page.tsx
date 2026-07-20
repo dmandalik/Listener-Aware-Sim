@@ -10,7 +10,10 @@ type Summary = {
 };
 type SessionRow = { id: string; pid: string; role: string; assignment: string | null; status: string; startedAt: string; endedAt: string | null; trials: number };
 
-const TABLES = ["events", "trials", "sessions", "participants", "utterances"] as const;
+const TABLES = [
+  "dataset", "results", "authored", "tlx", "survey", "roster",
+  "events", "trials", "sessions", "participants", "utterances", "trialSurveys",
+] as const;
 
 function pct(x: number | null) { return x == null ? "—" : `${Math.round(x * 100)}%`; }
 function ms(x: number | null) { return x == null ? "—" : `${(x / 1000).toFixed(1)}s`; }

@@ -14,6 +14,7 @@ import {
   participants,
   sessions,
   surveys,
+  trialSurveys,
   trials,
   utterances,
   type ParticipantRow,
@@ -27,6 +28,7 @@ import {
   type Event,
   type EventInput,
 } from "@/lib/events";
+import { isTestParticipant } from "@/lib/test-participant";
 
 /** Wall-clock stamp for events. Isolated so tests can inject a clock if needed. */
 export function now(): number {
@@ -138,19 +140,30 @@ export async function countAssignments(): Promise<Record<"speaker" | "novice" | 
   return out;
 }
 
-/** Counts per assignment cell of runs with a given status. */
+/** Counts per assignment cell of runs with a given status, EXCLUDING test/dev runs
+ *  (Test/User/blank names). Joins participants so an admin's play-through never counts
+ *  toward a recruitment quota. */
 async function countAssignmentsByStatus(
   status: "started" | "completed",
 ): Promise<Record<"speaker" | "novice" | "expert", number>> {
   const db = await getDb();
   const rows = (await db
-    .select({ assignment: sessions.assignment, n: count() })
+    .select({
+      assignment: sessions.assignment,
+      firstName: participants.firstName,
+      lastName: participants.lastName,
+    })
     .from(sessions)
-    .where(eq(sessions.status, status))
-    .groupBy(sessions.assignment)) as Array<{ assignment: string | null; n: number }>;
+    .innerJoin(participants, eq(sessions.prolificPid, participants.prolificPid))
+    .where(eq(sessions.status, status))) as Array<{
+    assignment: string | null;
+    firstName: string | null;
+    lastName: string | null;
+  }>;
   const out = { speaker: 0, novice: 0, expert: 0 };
   for (const r of rows) {
-    if (r.assignment && r.assignment in out) out[r.assignment as keyof typeof out] = Number(r.n);
+    if (isTestParticipant(r.firstName, r.lastName)) continue; // never count test/dev runs
+    if (r.assignment && r.assignment in out) out[r.assignment as keyof typeof out] += 1;
   }
   return out;
 }
@@ -686,4 +699,55 @@ export async function upsertSurvey(a: SurveyArgs): Promise<void> {
     .insert(surveys)
     .values({ sessionId: a.sessionId, ...provided })
     .onConflictDoUpdate({ target: surveys.sessionId, set: provided });
+}
+
+// ── Per-trial NASA-TLX ────────────────────────────────────────────────────────
+
+export interface TrialSurveyArgs {
+  sessionId: string;
+  trialIndex: number;
+  prolificPid?: string | null;
+  assignment?: "speaker" | "novice" | "expert" | null;
+  taskId?: "retrieval" | "repair" | "teleop" | null;
+  layout?: string | null;
+  scene?: string | null;
+  utteranceId?: number | null;
+  speakerPid?: string | null;
+  tlxMental: number;
+  tlxPhysical: number;
+  tlxTemporal: number;
+  tlxPerformance: number;
+  tlxEffort: number;
+  tlxFrustration: number;
+}
+
+/** Save (or replace) the NASA-TLX rating for one trial. One row per (session, trial),
+ *  so re-submitting the same trial overwrites rather than duplicating. */
+export async function upsertTrialSurvey(a: TrialSurveyArgs): Promise<void> {
+  const db = await getDb();
+  const values = {
+    sessionId: a.sessionId,
+    trialIndex: a.trialIndex,
+    prolificPid: a.prolificPid ?? null,
+    assignment: a.assignment ?? null,
+    taskId: a.taskId ?? null,
+    layout: a.layout ?? null,
+    scene: a.scene ?? null,
+    utteranceId: a.utteranceId ?? null,
+    speakerPid: a.speakerPid ?? null,
+    tlxMental: a.tlxMental,
+    tlxPhysical: a.tlxPhysical,
+    tlxTemporal: a.tlxTemporal,
+    tlxPerformance: a.tlxPerformance,
+    tlxEffort: a.tlxEffort,
+    tlxFrustration: a.tlxFrustration,
+  };
+  const { sessionId, trialIndex, ...set } = values;
+  await db
+    .insert(trialSurveys)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [trialSurveys.sessionId, trialSurveys.trialIndex],
+      set,
+    });
 }

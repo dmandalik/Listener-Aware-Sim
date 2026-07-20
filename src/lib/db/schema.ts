@@ -186,8 +186,10 @@ export const utterances = pgTable(
   (t) => [index("utterances_pool_idx").on(t.taskId, t.seed, t.scene)],
 );
 
-// End-of-study survey: demographics, NASA-TLX workload (0–100 per item), and one
-// open-ended feedback field. One row per session (speaker or listener).
+// Session-level survey: demographics (collected up front) + one open-ended feedback
+// field (collected with the FINAL trial's NASA-TLX). One row per session. NASA-TLX
+// now lives per-trial in `trialSurveys`; the tlx* columns here are retained for older
+// data but are no longer written.
 export const surveys = pgTable(
   "surveys",
   {
@@ -201,14 +203,14 @@ export const surveys = pgTable(
     genderOther: text("gender_other"),
     race: jsonb("race"), // string[] — select all that apply
     raceOther: text("race_other"),
-    // NASA-TLX, raw 0–100 per dimension.
+    // Legacy end-of-study NASA-TLX (superseded by per-trial trialSurveys).
     tlxMental: integer("tlx_mental"),
     tlxPhysical: integer("tlx_physical"),
     tlxTemporal: integer("tlx_temporal"),
     tlxPerformance: integer("tlx_performance"),
     tlxEffort: integer("tlx_effort"),
     tlxFrustration: integer("tlx_frustration"),
-    // Open-ended game feedback.
+    // Open-ended game feedback (asked once, with the last trial).
     feedback: text("feedback"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -217,9 +219,42 @@ export const surveys = pgTable(
   (t) => [uniqueIndex("surveys_session_uq").on(t.sessionId)],
 );
 
+// Per-trial NASA-TLX: one row after EACH trial, so workload can be compared across
+// tasks, layouts, and (for listeners) the specific utterance received. Six rows per
+// completed participant. Denormalized task/utterance fields make it analyzable on its
+// own; join to `trials` on (sessionId, trialIndex) for full outcome context.
+export const trialSurveys = pgTable(
+  "trial_surveys",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id").notNull(),
+    trialIndex: integer("trial_index").notNull(),
+    prolificPid: text("prolific_pid"),
+    assignment: text("assignment", { enum: ["speaker", "novice", "expert"] }),
+    taskId: text("task_id", { enum: ["retrieval", "repair", "teleop"] }),
+    layout: text("layout"),
+    scene: text("scene"),
+    // The utterance this workload rating pertains to (listener trials; null for speakers).
+    utteranceId: integer("utterance_id"),
+    speakerPid: text("speaker_pid"),
+    // NASA-TLX, raw 0–100 per dimension.
+    tlxMental: integer("tlx_mental"),
+    tlxPhysical: integer("tlx_physical"),
+    tlxTemporal: integer("tlx_temporal"),
+    tlxPerformance: integer("tlx_performance"),
+    tlxEffort: integer("tlx_effort"),
+    tlxFrustration: integer("tlx_frustration"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => [uniqueIndex("trial_surveys_session_trial_uq").on(t.sessionId, t.trialIndex)],
+);
+
 export type ParticipantRow = typeof participants.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type TrialRow = typeof trials.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type UtteranceRow = typeof utterances.$inferSelect;
 export type SurveyRow = typeof surveys.$inferSelect;
+export type TrialSurveyRow = typeof trialSurveys.$inferSelect;

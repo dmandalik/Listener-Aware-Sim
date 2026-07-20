@@ -9,7 +9,8 @@
 import { asc, eq } from "drizzle-orm";
 import { env } from "@/lib/env";
 import { ensureMigrated, getDb } from "@/lib/db/client";
-import { events, participants, sessions, surveys, trials, utterances } from "@/lib/db/schema";
+import { events, participants, sessions, surveys, trials, trialSurveys, utterances } from "@/lib/db/schema";
+import { isTestParticipant } from "@/lib/test-participant";
 
 /** Full admin: required for destructive actions (purge, delete-session). */
 export function checkAdminKey(key: string | null | undefined): boolean {
@@ -24,7 +25,7 @@ export function checkViewKey(key: string | null | undefined): boolean {
   return key === e.ADMIN_SECRET || (!!e.ADMIN_VIEW_SECRET && key === e.ADMIN_VIEW_SECRET);
 }
 
-const TABLES = { events, trials, sessions, participants, utterances } as const;
+const TABLES = { events, trials, sessions, participants, utterances, surveys, trialSurveys } as const;
 export type TableName = keyof typeof TABLES;
 
 async function all<T = any>(table: TableName): Promise<T[]> {
@@ -166,10 +167,21 @@ export function toJsonl(rows: any[]): string {
 // abandoned part-runs never enter analysis. `roster` keeps everyone but flags who
 // completed; `survey` naturally covers only those who actually submitted one.
 
-/** Session ids whose participant finished every game. */
+/** Session ids that count for analysis: finished every game AND authored by a real
+ *  participant (not a Test/User/blank-named admin/dev run). */
 async function completeSessionIds(db: any): Promise<Set<string>> {
-  const ss = (await db.select().from(sessions)) as any[];
-  return new Set<string>(ss.filter((s: any) => s.status === "completed").map((s: any) => s.id));
+  const [ss, parts] = (await Promise.all([
+    db.select().from(sessions),
+    db.select().from(participants),
+  ])) as [any[], any[]];
+  const testPid = new Set(
+    parts.filter((p: any) => isTestParticipant(p.firstName, p.lastName)).map((p: any) => p.prolificPid),
+  );
+  return new Set<string>(
+    ss
+      .filter((s: any) => s.status === "completed" && !testPid.has(s.prolificPid))
+      .map((s: any) => s.id),
+  );
 }
 
 /** One row per participant: who they are, their role, and how far they got. */
@@ -201,8 +213,9 @@ async function getRoster(): Promise<any[]> {
       email: p.email,
       role: (s?.assignment ?? p.role) as string | null, // novice | expert | speaker
       variant: s?.variant ?? null,
-      // Did they finish the WHOLE study (games + end survey)? Only complete rows
-      // feed the analysis exports.
+      // Test/dev run (Test/User/blank name): excluded from recruitment AND analysis.
+      isTest: isTestParticipant(p.firstName, p.lastName),
+      // Did they finish the WHOLE study? Only complete, non-test rows feed the exports.
       completed: s ? complete.has(s.id) : false,
       status: s?.status ?? null,
       trials: nTrials.get(p.prolificPid) ?? 0,
@@ -367,22 +380,19 @@ async function getDataset(): Promise<any[]> {
   return rows.sort(orderBy("authorName", "authorPid", "taskId", "layout", "listenerRole", "listenerName"));
 }
 
-/** One row per end-of-study survey: demographics, NASA-TLX (+ a raw average), and
- *  the open feedback, with the participant's name joined in. */
+/** One row per participant: demographics + their open-ended feedback. (NASA-TLX is now
+ *  per-trial — see the `tlx` view.) Complete, non-test sessions only. */
 async function getSurvey(): Promise<any[]> {
   const db = await getDb();
   const [svs, parts] = (await Promise.all([
     db.select().from(surveys),
     db.select().from(participants),
   ])) as [any[], any[]];
+  const complete = await completeSessionIds(db);
   const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
-  // Only submitted (complete) end surveys — a row with demographics but no TLX means
-  // the participant abandoned before finishing.
-  return svs.filter((s: any) => s.tlxMental != null).map((s: any) => {
-    const tlxVals = [s.tlxMental, s.tlxPhysical, s.tlxTemporal, s.tlxPerformance, s.tlxEffort, s.tlxFrustration].filter(
-      (v) => v != null,
-    ) as number[];
-    return {
+  return svs
+    .filter((s: any) => complete.has(s.sessionId))
+    .map((s: any) => ({
       sessionId: s.sessionId,
       prolificPid: s.prolificPid,
       name: s.prolificPid ? nameByPid.get(s.prolificPid) ?? null : null,
@@ -391,17 +401,51 @@ async function getSurvey(): Promise<any[]> {
       gender: s.gender === "Prefer to self-describe" && s.genderOther ? s.genderOther : s.gender,
       race: Array.isArray(s.race) ? s.race.join("; ") : s.race,
       raceOther: s.raceOther,
-      tlxMental: s.tlxMental,
-      tlxPhysical: s.tlxPhysical,
-      tlxTemporal: s.tlxTemporal,
-      tlxPerformance: s.tlxPerformance,
-      tlxEffort: s.tlxEffort,
-      tlxFrustration: s.tlxFrustration,
-      tlxRaw: tlxVals.length ? Math.round((tlxVals.reduce((a, b) => a + b, 0) / tlxVals.length) * 10) / 10 : null,
       feedback: s.feedback,
       createdAt: s.createdAt,
-    };
-  }).sort(orderBy("role", "name", "prolificPid"));
+    }))
+    .sort(orderBy("role", "name", "prolificPid"));
+}
+
+/** One row per trial's NASA-TLX rating: workload (+ raw average) joined to the task,
+ *  layout, utterance, and participant. This is the workload dataset — 6 rows per
+ *  complete, non-test participant. Sorted so each person's six are contiguous. */
+async function getTlx(): Promise<any[]> {
+  const db = await getDb();
+  const [ts, parts] = (await Promise.all([
+    db.select().from(trialSurveys),
+    db.select().from(participants),
+  ])) as [any[], any[]];
+  const complete = await completeSessionIds(db);
+  const nameByPid = new Map<string, any>(parts.map((p: any) => [p.prolificPid, p.name]));
+  return ts
+    .filter((s: any) => complete.has(s.sessionId))
+    .map((s: any) => {
+      const vals = [s.tlxMental, s.tlxPhysical, s.tlxTemporal, s.tlxPerformance, s.tlxEffort, s.tlxFrustration].filter(
+        (v) => v != null,
+      ) as number[];
+      return {
+        prolificPid: s.prolificPid,
+        name: s.prolificPid ? nameByPid.get(s.prolificPid) ?? null : null,
+        role: s.assignment,
+        trialIndex: s.trialIndex,
+        taskId: s.taskId,
+        layout: s.layout,
+        scene: s.scene,
+        utteranceId: s.utteranceId,
+        authorPid: s.speakerPid,
+        authorName: s.speakerPid ? nameByPid.get(s.speakerPid) ?? null : null,
+        tlxMental: s.tlxMental,
+        tlxPhysical: s.tlxPhysical,
+        tlxTemporal: s.tlxTemporal,
+        tlxPerformance: s.tlxPerformance,
+        tlxEffort: s.tlxEffort,
+        tlxFrustration: s.tlxFrustration,
+        tlxRaw: vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null,
+        createdAt: s.createdAt,
+      };
+    })
+    .sort(orderBy("role", "name", "prolificPid", "trialIndex"));
 }
 
 const VIEWS: Record<string, () => Promise<any[]>> = {
@@ -410,6 +454,7 @@ const VIEWS: Record<string, () => Promise<any[]>> = {
   results: getResults,
   authored: getAuthored,
   survey: getSurvey,
+  tlx: getTlx,
 };
 
 export type ExportName = TableName | keyof typeof VIEWS;
@@ -419,11 +464,13 @@ export const EXPORT_NAMES: ExportName[] = [
   "roster",
   "authored",
   "survey",
+  "tlx",
   "events",
   "trials",
   "sessions",
   "participants",
   "utterances",
+  "trialSurveys",
 ];
 
 export async function exportTable(table: ExportName, format: "csv" | "jsonl"): Promise<string> {

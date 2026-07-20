@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { SpeakerTrialPayload } from "@/lib/server/listener";
 import { SpeakerPanel } from "@/components/SpeakerPanel";
 import { RobotAvatar } from "@/components/RobotAvatar";
-import { EndSurvey } from "@/components/EndSurvey";
+import { TrialSurvey } from "@/components/TrialSurvey";
 
-type Phase = "loading" | "intro" | "composing" | "survey" | "done" | "error";
+type Phase = "loading" | "intro" | "composing" | "trialSurvey" | "done" | "error";
 
 async function post(url: string, body: unknown): Promise<SpeakerTrialPayload> {
   const res = await fetch(url, {
@@ -38,7 +38,7 @@ export default function SpeakerPage() {
 
   const begin = useCallback((p: SpeakerTrialPayload, allowIntro = false) => {
     if (p.done) {
-      setPhase("survey");
+      setPhase("done");
       return;
     }
     setPayload(p);
@@ -130,8 +130,17 @@ export default function SpeakerPage() {
     );
   }
 
-  if (phase === "survey" && payload) {
-    return <EndSurvey sessionId={payload.sessionId} onDone={() => setPhase("done")} />;
+  if (phase === "trialSurvey" && payload) {
+    return (
+      <TrialSurvey
+        sessionId={payload.sessionId}
+        trialIndex={payload.trialIndex}
+        isLast={payload.missionNumber >= payload.missionTotal}
+        missionNumber={payload.missionNumber}
+        missionTotal={payload.missionTotal}
+        onDone={() => goTo(payload.trialIndex + 1)}
+      />
+    );
   }
 
   if (phase === "done") {
@@ -171,9 +180,13 @@ export default function SpeakerPage() {
             different person (the &ldquo;listener&rdquo;) will later read <b>only your message</b> and try to carry
             it out.
           </p>
-          <p style={{ color: "var(--ink)", lineHeight: 1.6, marginBottom: 18 }}>
+          <p style={{ color: "var(--ink)", lineHeight: 1.6, marginBottom: 12 }}>
             <b>Read the briefing at the top of each scene</b> before you write — it explains exactly what
             that scene needs.
+          </p>
+          <p style={{ color: "var(--ink)", lineHeight: 1.6, marginBottom: 18 }}>
+            <b>After each scene you'll answer a few quick questions</b> about how that one felt — it only
+            takes a moment.
           </p>
           <div style={{ display: "grid", placeItems: "center" }}>
             <button className="btn" onClick={() => setPhase("composing")}>
@@ -218,7 +231,7 @@ export default function SpeakerPage() {
         >
           ← Back
         </button>
-        <button className="btn" onClick={() => goTo(payload.trialIndex + 1)} disabled={!savedThisTrial}>
+        <button className="btn" onClick={() => setPhase("trialSurvey")} disabled={!savedThisTrial}>
           {payload.missionNumber >= payload.missionTotal ? "Finish" : "Next scene →"}
         </button>
       </div>
