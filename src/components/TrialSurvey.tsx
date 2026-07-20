@@ -4,7 +4,7 @@
 // compared across tasks/utterances. The open-ended feedback box appears ONLY on the
 // final trial. Saves to /api/trial-survey; calls onDone() when submitted.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RobotAvatar } from "@/components/RobotAvatar";
 
 const TLX = [
@@ -69,6 +69,13 @@ export function TrialSurvey({
   // On the final trial the open-ended feedback lives on its OWN page, shown after the
   // sliders, so the two aren't crowded together. Non-final trials never reach it.
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // Always open each questionnaire at the top. The window keeps its scroll position
+  // across the game→survey (and slider→feedback) swap, which otherwise drops the
+  // participant partway down the new page. Reset whenever the trial or page changes.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [trialIndex, showFeedback]);
 
   const submit = async () => {
     if (saving) return;
