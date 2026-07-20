@@ -30,6 +30,7 @@ import { trials, sessions, utterances } from "@/lib/db/schema";
 import {
   closeTrial,
   countCompletedAssignments,
+  countActiveAssignments,
   countUtterances,
   drawUtterance,
   endSession,
@@ -981,8 +982,11 @@ export async function goToSpeakerTrial(
  * default batches this recruits all speakers to completion before any listener.
  */
 async function pickAssignment(): Promise<Assignment> {
-  const completed = await countCompletedAssignments();
-  return roleForCompletions(loadRecruitment(), completed);
+  const [completed, active] = await Promise.all([
+    countCompletedAssignments(),
+    countActiveAssignments(),
+  ]);
+  return roleForCompletions(loadRecruitment(), completed, active);
 }
 
 export interface AssignResult {

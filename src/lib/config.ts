@@ -317,29 +317,57 @@ export function roleForArrival(
 
 /**
  * The next role, based on how many participants have actually COMPLETED each role
- * (not how many sessions were started). Keeps assigning a batch's role until that
- * many of that role have finished, then moves to the next batch — so the study
- * reliably fills 5 speakers, then 5 novices, then 5 experts (per cycle), no matter
- * how many people abandon or get purged along the way.
+ * (not how many sessions were started) plus how many are currently in-flight. Two
+ * guarantees, so the cells can't drift out of balance:
  *
- * Note: under a burst of simultaneous arrivals before anyone finishes, several people
- * can be assigned the same role at once (mild over-recruitment). That's the safe
- * direction — extra COMPLETED participants only add data — and is a non-issue for
- * sequential/lab recruiting. It never under-fills a quota.
+ *  1. No under-fill: a role keeps being recruited until its quota is genuinely met,
+ *     even if participants abandon or get purged (which is what caused the observed
+ *     4-speaker/6-novice/3-expert skew under the old session-counting logic).
+ *  2. No over-fill of the listener cells: once the first batch (speakers — the pool
+ *     producer) has COMPLETED its quota, novices and experts are filled by whichever
+ *     is least-provisioned (completed + in-flight), so a burst of simultaneous
+ *     arrivals can't push novices past experts (or vice-versa).
+ *
+ * The first batch stays strictly completion-gated (never advance to listeners until
+ * the speaker pool is actually full), so a listener is never handed an empty pool.
+ * `active` is the count of in-flight (started) sessions per role.
  */
 export function roleForCompletions(
   recruitment: Recruitment,
   completed: Record<"speaker" | "novice" | "expert", number>,
+  active: Record<"speaker" | "novice" | "expert", number> = { speaker: 0, novice: 0, expert: 0 },
 ): "speaker" | "novice" | "expert" {
-  // How many full cycles are done: the min completed-cycles across all batches.
-  const cyclesDone = Math.min(
-    ...recruitment.batches.map((b) => Math.floor((completed[b.role] ?? 0) / b.count)),
-  );
-  const target = cyclesDone + 1; // filling the (cyclesDone+1)-th copy of each batch
-  for (const b of recruitment.batches) {
-    if ((completed[b.role] ?? 0) < target * b.count) return b.role;
+  const batches = recruitment.batches;
+  const cyclesDone = Math.min(...batches.map((b) => Math.floor((completed[b.role] ?? 0) / b.count)));
+  const target = cyclesDone + 1;
+  const done = (role: string) => completed[role as "speaker"] ?? 0;
+  const inflight = (role: string) => active[role as "speaker"] ?? 0;
+
+  // Phase 1 — the pool producer (first batch) must COMPLETE its quota before any
+  // consumer batch. Over-recruiting it under a burst only adds utterance data (benign)
+  // and guarantees listeners always meet a full pool.
+  const first = batches[0]!;
+  if (done(first.role) < target * first.count) return first.role;
+
+  // Phase 2 — consumer batches (novice/expert) are peers on the same pool. Fill the
+  // least-provisioned incomplete one, and never assign one that's already fully
+  // provisioned (done + in-flight ≥ target), so they stay matched.
+  let best: { role: "speaker" | "novice" | "expert"; prov: number } | null = null;
+  for (const b of batches.slice(1)) {
+    if (done(b.role) >= target * b.count) continue; // this cell is complete
+    const prov = done(b.role) + inflight(b.role);
+    if (prov >= target * b.count) continue; // enough in-flight to fill it — don't pile on
+    if (!best || prov < best.prov) best = { role: b.role, prov };
   }
-  return recruitment.batches[0]!.role; // unreachable
+  if (best) return best.role;
+
+  // Every consumer batch is complete-or-fully-in-flight. If any is still not COMPLETE,
+  // keep assigning it (covers in-flight participants who abandon); otherwise the whole
+  // cycle is done → start the next one at the first batch.
+  for (const b of batches.slice(1)) {
+    if (done(b.role) < target * b.count) return b.role;
+  }
+  return first.role;
 }
 
 // ── Repair diagram (§5) ──────────────────────────────────────────────────────

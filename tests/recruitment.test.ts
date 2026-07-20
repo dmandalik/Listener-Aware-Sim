@@ -1,5 +1,8 @@
-// Completion-based recruitment: keep assigning a role until that many of that role
-// have FINISHED, then advance — robust to abandonment/purging. Pure-function tests.
+// Completion-based recruitment with a burst cap:
+//  - the first batch (speakers, the pool producer) is filled to COMPLETION before any
+//    listener, robust to abandonment/purging;
+//  - novices and experts are then kept balanced by provisioning (completed + in-flight)
+//    so a burst can't push one past the other.
 
 import { describe, expect, it } from "vitest";
 import { roleForCompletions } from "@/lib/config";
@@ -9,37 +12,54 @@ const R = { batches: [
   { role: "novice" as const, count: 5 },
   { role: "expert" as const, count: 5 },
 ] };
-const pick = (s: number, n: number, e: number) =>
-  roleForCompletions(R, { speaker: s, novice: n, expert: e });
+type C = { speaker: number; novice: number; expert: number };
+const pick = (completed: C, active?: C) => roleForCompletions(R, completed, active);
+const c = (speaker: number, novice: number, expert: number): C => ({ speaker, novice, expert });
 
 describe("roleForCompletions", () => {
-  it("fills speakers first, then novices, then experts (cycle 1)", () => {
-    expect(pick(0, 0, 0)).toBe("speaker");
-    expect(pick(3, 0, 0)).toBe("speaker");
-    expect(pick(5, 0, 0)).toBe("novice");
-    expect(pick(5, 3, 0)).toBe("novice");
-    expect(pick(5, 5, 0)).toBe("expert");
-    expect(pick(5, 5, 3)).toBe("expert");
+  it("fills speakers to completion before any listener", () => {
+    expect(pick(c(0, 0, 0))).toBe("speaker");
+    expect(pick(c(4, 0, 0))).toBe("speaker");
+    // Even with 5 speakers IN-FLIGHT but not yet complete, keep assigning speakers —
+    // a listener must never meet an empty pool.
+    expect(pick(c(0, 0, 0), c(5, 0, 0))).toBe("speaker");
+    expect(pick(c(4, 0, 0), c(1, 0, 0))).toBe("speaker");
   });
 
-  it("repeats the cycle once every role's quota is met", () => {
-    expect(pick(5, 5, 5)).toBe("speaker"); // cycle 2 begins
-    expect(pick(10, 5, 5)).toBe("novice");
-    expect(pick(10, 10, 5)).toBe("expert");
-    expect(pick(10, 10, 10)).toBe("speaker");
+  it("balances novices and experts once speakers are complete", () => {
+    expect(pick(c(5, 0, 0))).toBe("novice"); // first listener
+    expect(pick(c(5, 1, 0))).toBe("expert"); // expert is behind → assign expert
+    expect(pick(c(5, 1, 1))).toBe("novice"); // tied → first (novice)
+    expect(pick(c(5, 3, 2))).toBe("expert"); // expert behind
+    expect(pick(c(5, 5, 3))).toBe("expert"); // novices full, experts remain
   });
 
-  it("keeps recruiting a role until it is truly COMPLETE, ignoring abandonment", () => {
-    // The exact shape of the live data: an incomplete speaker was removed, leaving 4.
-    // It must go back to recruiting speakers, not advance.
-    expect(pick(4, 6, 3)).toBe("speaker");
-    // Once the 5th speaker completes, novices are already over-filled (6≥5) so skip to experts.
-    expect(pick(5, 6, 3)).toBe("expert");
+  it("counts in-flight so a burst can't over-recruit one listener cell", () => {
+    // 5 novices already in-flight (none complete yet) → don't pile on; go to experts.
+    expect(pick(c(5, 0, 0), c(0, 5, 0))).toBe("expert");
+    // novice + its in-flight already meets the quota → assign expert instead.
+    expect(pick(c(5, 3, 0), c(0, 2, 0))).toBe("expert");
+    // an in-flight novice abandons (drops out) → the cell reopens and refills.
+    expect(pick(c(5, 3, 5), c(0, 0, 0))).toBe("novice");
   });
 
-  it("does not get stuck when a role is over-recruited (burst)", () => {
-    // 6 speakers finished in cycle 1 (over by 1) — must still advance to novices.
-    expect(pick(6, 0, 0)).toBe("novice");
-    expect(pick(7, 5, 0)).toBe("expert");
+  it("keeps recruiting a role until it truly COMPLETES, ignoring abandonment", () => {
+    // The exact live shape: an incomplete speaker was removed, leaving 4 → back to speakers.
+    expect(pick(c(4, 6, 3))).toBe("speaker");
+    // 5th speaker done; novices over-full (legacy) so only experts remain.
+    expect(pick(c(5, 6, 3))).toBe("expert");
+  });
+
+  it("repeats the cycle once every quota is met", () => {
+    expect(pick(c(5, 5, 5))).toBe("speaker"); // cycle 2
+    expect(pick(c(10, 5, 5))).toBe("novice");
+    expect(pick(c(10, 10, 10))).toBe("speaker");
+  });
+
+  it("never under-fills: if listeners are all in-flight but not complete, keep filling", () => {
+    // Both listener cells fully in-flight, none complete → assign the first incomplete
+    // (covers any that abandon), never advances leaving a quota short.
+    const r = pick(c(5, 0, 0), c(0, 5, 5));
+    expect(["novice", "expert"]).toContain(r);
   });
 });

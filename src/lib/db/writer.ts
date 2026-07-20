@@ -138,22 +138,36 @@ export async function countAssignments(): Promise<Record<"speaker" | "novice" | 
   return out;
 }
 
-/** Counts per assignment cell of runs that actually FINISHED (status = completed) —
- *  the basis for completion-based recruitment. Counting completions (not started
- *  sessions) makes recruitment robust to abandonment and to sessions being purged:
- *  a role's quota only advances once that many participants have truly finished. */
-export async function countCompletedAssignments(): Promise<Record<"speaker" | "novice" | "expert", number>> {
+/** Counts per assignment cell of runs with a given status. */
+async function countAssignmentsByStatus(
+  status: "started" | "completed",
+): Promise<Record<"speaker" | "novice" | "expert", number>> {
   const db = await getDb();
   const rows = (await db
     .select({ assignment: sessions.assignment, n: count() })
     .from(sessions)
-    .where(eq(sessions.status, "completed"))
+    .where(eq(sessions.status, status))
     .groupBy(sessions.assignment)) as Array<{ assignment: string | null; n: number }>;
   const out = { speaker: 0, novice: 0, expert: 0 };
   for (const r of rows) {
     if (r.assignment && r.assignment in out) out[r.assignment as keyof typeof out] = Number(r.n);
   }
   return out;
+}
+
+/** Counts of FINISHED (status = completed) runs per role — the basis for completion-
+ *  based recruitment. Counting completions (not started sessions) makes recruitment
+ *  robust to abandonment and purging: a role's quota only advances once that many
+ *  participants have truly finished. */
+export function countCompletedAssignments() {
+  return countAssignmentsByStatus("completed");
+}
+
+/** Counts of IN-PROGRESS (status = started) runs per role. assignAndStart purges
+ *  idle-abandoned sessions first, so at assignment time these are genuine in-flight
+ *  participants — used to avoid over-recruiting a role beyond its remaining quota. */
+export function countActiveAssignments() {
+  return countAssignmentsByStatus("started");
 }
 
 export async function endSession(
