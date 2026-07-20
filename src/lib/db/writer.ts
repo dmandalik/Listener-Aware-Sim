@@ -447,16 +447,93 @@ export async function setTrialState(trialId: number, state: unknown): Promise<vo
 
 // ── Utterances (the speaker pool, §8) ────────────────────────────────────────
 
-/** Session ids of speakers who FINISHED their whole run. Only their utterances are
- *  eligible to be served to a listener — a half-finished or dev/test author is never
- *  drawn from. Under batched recruitment every speaker completes before any listener
- *  arrives, so this only ever excludes in-progress and abandoned authors. */
-async function completedSessionIdSet(db: any): Promise<Set<string>> {
-  const rows = (await db
-    .select({ id: sessions.id })
-    .from(sessions)
-    .where(eq(sessions.status, "completed"))) as Array<{ id: string }>;
-  return new Set(rows.map((r) => r.id));
+/** Author sessions whose utterances may be served to a listener: a speaker who
+ *  FINISHED the whole game (status = "completed", i.e. hit submit on the last scene)
+ *  AND is NOT a test/dev run (Test/User/blank name). Nothing else is ever drawn —
+ *  not an in-progress author, not an abandoned one, not a test account. Recomputed on
+ *  every draw so it always reflects the live truth. */
+async function servableAuthorSessions(db: any): Promise<Set<string>> {
+  const [ss, parts] = (await Promise.all([
+    db.select({ id: sessions.id, pid: sessions.prolificPid, status: sessions.status }).from(sessions),
+    db
+      .select({ pid: participants.prolificPid, firstName: participants.firstName, lastName: participants.lastName })
+      .from(participants),
+  ])) as [
+    Array<{ id: string; pid: string; status: string }>,
+    Array<{ pid: string; firstName: string | null; lastName: string | null }>,
+  ];
+  const testPid = new Set(
+    parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.pid),
+  );
+  return new Set(ss.filter((s) => s.status === "completed" && !testPid.has(s.pid)).map((s) => s.id));
+}
+
+/** Per-utterance listener coverage, derived fresh from the trials that reference each
+ *  utterance — the single source of truth for "one novice + one expert per message":
+ *
+ *    seen*     — a listener of that role FINISHED the game (trial sits in a completed,
+ *                non-test session). Permanent: this message has been used up for that
+ *                role and must not go to a second listener of the same role.
+ *    reserved* — a listener of that role has it IN FLIGHT right now (trial in a started,
+ *                non-test session). A soft hold so two concurrent same-role listeners
+ *                don't grab the same message; it evaporates if they abandon (the purge
+ *                deletes the trial) so the message frees up again.
+ *
+ *  Trials in test or abandoned/screened-out sessions count for NEITHER — a test run or
+ *  a drop-out never consumes a message. Because this is recomputed from trials on every
+ *  draw, the coverage can never drift out of step with reality. */
+interface UtteranceCoverage {
+  seenNovice: boolean;
+  seenExpert: boolean;
+  reservedNovice: boolean;
+  reservedExpert: boolean;
+}
+
+async function coverageByUtterance(
+  db: any,
+  utteranceIds: number[],
+): Promise<Map<number, UtteranceCoverage>> {
+  const out = new Map<number, UtteranceCoverage>();
+  for (const id of utteranceIds)
+    out.set(id, { seenNovice: false, seenExpert: false, reservedNovice: false, reservedExpert: false });
+  if (!utteranceIds.length) return out;
+
+  const [trs, ss, parts] = (await Promise.all([
+    db
+      .select({ utteranceId: trials.utteranceId, assignment: trials.assignment, sessionId: trials.sessionId })
+      .from(trials)
+      .where(inArray(trials.utteranceId, utteranceIds)),
+    db.select({ id: sessions.id, pid: sessions.prolificPid, status: sessions.status }).from(sessions),
+    db
+      .select({ pid: participants.prolificPid, firstName: participants.firstName, lastName: participants.lastName })
+      .from(participants),
+  ])) as [
+    Array<{ utteranceId: number | null; assignment: string | null; sessionId: string }>,
+    Array<{ id: string; pid: string; status: string }>,
+    Array<{ pid: string; firstName: string | null; lastName: string | null }>,
+  ];
+  const testPid = new Set(
+    parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.pid),
+  );
+  const sessMeta = new Map(ss.map((s) => [s.id, { status: s.status, test: testPid.has(s.pid) }]));
+
+  for (const t of trs) {
+    if (t.utteranceId == null) continue;
+    if (t.assignment !== "novice" && t.assignment !== "expert") continue;
+    const meta = sessMeta.get(t.sessionId);
+    if (!meta || meta.test) continue; // test/unknown session — never marks or reserves
+    const cov = out.get(t.utteranceId);
+    if (!cov) continue;
+    if (meta.status === "completed") {
+      if (t.assignment === "novice") cov.seenNovice = true;
+      else cov.seenExpert = true;
+    } else if (meta.status === "started") {
+      if (t.assignment === "novice") cov.reservedNovice = true;
+      else cov.reservedExpert = true;
+    }
+    // abandoned / screened_out: ignored — the message is freed for the next listener.
+  }
+  return out;
 }
 
 export interface InsertUtteranceArgs {
@@ -524,12 +601,23 @@ export async function upsertAuthorUtterance(a: InsertUtteranceArgs): Promise<num
 }
 
 /**
- * Pool draw for a (task, seed, scene) cell, PER CONDITION (§8.3). Picks the
- * utterance least-served-to-this-condition, breaking ties at random. Result: each
- * novice gets a distinct utterance while any remain unused, then the pool spreads
- * evenly (each utterance served to the same number of novices) — and every
- * utterance is used. Experts are tracked independently, so the same utterance can
- * go to one novice AND one expert (the within-utterance comparison, §8).
+ * Pool draw for a (task, seed, scene) cell, for ONE listener condition (§8.3).
+ *
+ * The rule the study needs: each message is heard by ONE novice and ONE expert, and
+ * no more. So we hand every incoming listener a FRESH message their role has not yet
+ * seen, and only ever fall back to reuse if the pool genuinely runs out.
+ *
+ * "Seen / reserved" are derived live from the trials (see `coverageByUtterance`), not
+ * from a stored counter, so they can never drift:
+ *   - never serve a message this role has already SEEN (a same-role listener finished
+ *     it) — that would give it to a second novice / second expert.
+ *   - avoid one this role has RESERVED (a same-role listener has it open right now),
+ *     so two concurrent listeners of the same role don't collide.
+ *   - PREFER a message the OTHER role has already seen, so a novice-heard message is
+ *     the first thing an expert gets (and vice-versa) — that is what forms a pair.
+ *
+ * Only messages from speakers who finished the whole game (and aren't test runs) are
+ * ever in play.
  */
 export async function drawUtterance(
   taskId: "retrieval" | "repair" | "teleop",
@@ -544,27 +632,39 @@ export async function drawUtterance(
     .where(
       and(eq(utterances.taskId, taskId), eq(utterances.seed, seed), eq(utterances.scene, scene)),
     )) as UtteranceRow[];
-  // Serve ONLY utterances authored by a speaker who finished their whole run — never
-  // an in-progress, abandoned, or dev/test author.
-  const completed = await completedSessionIdSet(db);
-  const rows = all.filter((r) => completed.has(r.authorSessionId));
+  // Serve ONLY messages authored by a speaker who finished their whole run and isn't a
+  // test/dev account — never an in-progress, abandoned, or Test/User/blank author.
+  const servable = await servableAuthorSessions(db);
+  const rows = all.filter((r) => servable.has(r.authorSessionId));
   if (rows.length === 0) return null;
 
-  // Balance on COMPLETED trials, not draws: an utterance served to a listener who
-  // then abandons never gets a completed++, so it stays least-completed and is
-  // re-served ("reserved" per §8.3) until a real listener finishes it. `served`
-  // (draw count) is a secondary tie-break to spread concurrent in-flight draws;
-  // random breaks the rest. This keeps completed novices == completed experts and
-  // each speaker's utterances used equally.
-  const completedOf = (r: UtteranceRow) =>
-    condition === "novice" ? r.completedNovice : r.completedExpert;
-  const servedOf = (r: UtteranceRow) => (condition === "novice" ? r.servedNovice : r.servedExpert);
-  const minC = Math.min(...rows.map(completedOf));
-  let pool = rows.filter((r) => completedOf(r) === minC);
-  const minS = Math.min(...pool.map(servedOf));
-  pool = pool.filter((r) => servedOf(r) === minS);
+  const cov = await coverageByUtterance(db, rows.map((r) => r.id));
+  const seenThis = (r: UtteranceRow) =>
+    condition === "novice" ? cov.get(r.id)!.seenNovice : cov.get(r.id)!.seenExpert;
+  const reservedThis = (r: UtteranceRow) =>
+    condition === "novice" ? cov.get(r.id)!.reservedNovice : cov.get(r.id)!.reservedExpert;
+  const seenOther = (r: UtteranceRow) =>
+    condition === "novice" ? cov.get(r.id)!.seenExpert : cov.get(r.id)!.seenNovice;
+
+  // Candidate tiers, best first — take the first tier that has anything:
+  //   1. FRESH   — never seen by this role, and nobody of this role holds it now.
+  //   2. UNSEEN  — never seen by this role, but currently reserved (only when every
+  //                fresh one is already taken by a concurrent same-role listener).
+  //   3. ANY     — everything already seen by this role; re-serve as a last resort so
+  //                an over-recruited role degrades gracefully instead of erroring.
+  const fresh = rows.filter((r) => !seenThis(r) && !reservedThis(r));
+  const unseen = rows.filter((r) => !seenThis(r));
+  let pool = fresh.length ? fresh : unseen.length ? unseen : rows;
+
+  // Within the chosen tier, prefer messages the OTHER role already heard, so novices
+  // and experts converge onto the SAME messages and every pairing gets completed.
+  const pairing = pool.filter((r) => seenOther(r));
+  if (pairing.length) pool = pairing;
+
   const pick = pool[Math.floor(Math.random() * pool.length)]!;
 
+  // Keep the descriptive serve counter moving (the admin pool view reads it); the
+  // authoritative seen/reserved state is derived from trials above, not from this.
   await db
     .update(utterances)
     .set({
@@ -594,8 +694,8 @@ export async function countUtterances(
     .where(
       and(eq(utterances.taskId, taskId), eq(utterances.seed, seed), eq(utterances.scene, scene)),
     )) as Array<{ authorSessionId: string }>;
-  const completed = await completedSessionIdSet(db);
-  return rows.filter((r) => completed.has(r.authorSessionId)).length;
+  const servable = await servableAuthorSessions(db);
+  return rows.filter((r) => servable.has(r.authorSessionId)).length;
 }
 
 /** Fold a TERMINATED listener trial into an utterance's aggregates. Increments the

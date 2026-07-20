@@ -117,14 +117,19 @@ export async function getSummary(): Promise<Summary> {
     }))
     .sort((a, b) => a.taskId.localeCompare(b.taskId) || a.assignment.localeCompare(b.assignment));
 
-  const totalServed = us.reduce((a, u) => a + (u.timesServed ?? 0), 0);
-  const rates = us.filter((u) => u.successRate != null).map((u) => u.successRate as number);
+  // Pool stats count only SERVABLE messages: authored by a speaker who finished the
+  // whole game and isn't a test run. This matches the "finished speakers x 6" figure
+  // instead of the raw row count (which also holds half-written and test messages that
+  // are never served to anyone).
+  const servableUtts = us.filter((u) => usable.has(u.authorSessionId));
+  const totalServed = servableUtts.reduce((a, u) => a + (u.timesServed ?? 0), 0);
+  const rates = servableUtts.filter((u) => u.successRate != null).map((u) => u.successRate as number);
   return {
     sessions: { total: completed + inProgress, completed, inProgress, byAssignment },
     cells,
     dropout: { abandoned },
     pool: {
-      utterances: us.length,
+      utterances: servableUtts.length,
       totalServed,
       avgSuccessRate: rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null,
     },

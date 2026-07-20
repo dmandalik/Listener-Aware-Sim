@@ -40,11 +40,22 @@ async function makeRun(
     withSurvey?: boolean;
     role?: "speaker" | "listener";
     assignment?: "speaker" | "novice" | "expert";
+    firstName?: string | null;
+    lastName?: string | null;
   },
 ) {
   const db = await getDb();
   const role = opts.role ?? "speaker";
-  await upsertParticipant({ prolificPid: pid, studyId: "S", sessionId: `${pid}-ps`, role });
+  // Default to a REAL (non-test) name so the run is servable/counts; blank or Test/User
+  // names are treated as dev runs and excluded, so tests that want that pass them in.
+  await upsertParticipant({
+    prolificPid: pid,
+    studyId: "S",
+    sessionId: `${pid}-ps`,
+    role,
+    firstName: opts.firstName === undefined ? "Real" : opts.firstName,
+    lastName: opts.lastName === undefined ? pid : opts.lastName,
+  });
   const sid = `${pid}-sess`;
   await startSession({
     id: sid,
