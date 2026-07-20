@@ -1,147 +1,101 @@
-# Deploying The Fetch Games (Vercel + Neon)
+# Deploying Fetch Games
 
-This app runs on **Vercel** (Next.js) with **Neon** (serverless Postgres). Local dev
-uses an embedded PGlite database; production flips one env var to Neon. Nothing else
-in the code changes between the two.
+The app runs on Vercel with a Neon database. Local runs use a small built in database
+called PGlite. Production uses Neon. You flip one setting to switch, and nothing else in
+the code changes.
 
----
+## 1. Make the database on Neon
 
-## 1. Create the database (Neon)
+Sign up at [neon.tech](https://neon.tech) and make a project. Pick a region near your
+players. Copy the connection string from the dashboard. It looks like
+`postgres://user:pass@ep-xxx.neon.tech/neondb?sslmode=require`. That is your
+`DATABASE_URL`.
 
-1. Sign up at [neon.tech](https://neon.tech) and create a **project**. Pick a region
-   close to your participants (e.g. `us-east`). Keep the Vercel region (step 2) the
-   same for low latency.
-2. From the project dashboard, copy the **connection string** (it looks like
-   `postgres://user:pass@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require`).
-   This is your `DATABASE_URL`.
+The tables are created on the first request, so you do not run anything by hand. The
+migrations live in the `drizzle` folder and apply themselves.
 
-The schema is created automatically on first request — migrations live in `drizzle/`
-and `ensureMigrated()` applies them idempotently. You do **not** need to run anything
-by hand. (If you prefer to migrate ahead of traffic, run locally with
-`DB_DRIVER=neon DATABASE_URL=... npm run db:migrate`.)
+## 2. Put the app on Vercel
 
----
+Push this repo to GitHub. In [vercel.com](https://vercel.com) pick Add New, then Project,
+and import it. Vercel detects Next.js on its own.
 
-## 2. Deploy the app (Vercel)
-
-1. Push this repo to GitHub, then in [vercel.com](https://vercel.com) **Add New →
-   Project** and import it. Framework auto-detects as Next.js.
-2. Set the **Environment Variables** below (Project → Settings → Environment
-   Variables), then **Deploy**. Every later `git push` to your main branch
-   auto-deploys; each branch/PR gets a preview URL.
-
-### Environment variables (production)
+Set the variables below under Project, Settings, Environment Variables. Then click Deploy.
+After that, every push to your main branch deploys on its own.
 
 | Variable | Value | Notes |
 |---|---|---|
 | `DB_DRIVER` | `neon` | Switches from PGlite to Neon. |
-| `DATABASE_URL` | *(Neon string)* | Required when `DB_DRIVER=neon`. |
-| `ADMIN_SECRET` | *(long random string)* | Gates all `/api/admin/*`. **Change from the default.** |
-| `PROLIFIC_COMPLETION_CODE` | *(from Prolific)* | Sent as `?cc=` on finish. |
-| `PROLIFIC_SCREENOUT_CODE` | *(from Prolific)* | Sent as `?cc=` on screen-out / decline. |
-| `PROLIFIC_COMPLETE_BASE` | `https://app.prolific.com/submissions/complete` | Default is correct. |
+| `DATABASE_URL` | your Neon string | Needed when `DB_DRIVER` is `neon`. |
+| `ADMIN_SECRET` | a long random string | Full admin access. Change it from the default. |
+| `ADMIN_VIEW_SECRET` | a password you pick | Optional. View only access for teammates. |
 
-The app **fails loud** on a missing/invalid var (see `src/lib/env.ts`), so a
-misconfigured deploy errors clearly instead of running half-broken. `PGLITE_DATA_DIR`
-is dev-only and ignored in production.
+The app stops with a clear error if a required variable is missing, so a bad setup fails
+loudly instead of half working.
 
----
+## 3. Keep it warm (optional)
 
-## 3. Keep-warm (optional but recommended)
+Neon's free tier goes to sleep after a quiet spell, which adds about half a second to the
+first request. The app has a health check at `/api/health` that wakes it. Point a free
+pinger like [UptimeRobot](https://uptimerobot.com) or
+[cron-job.org](https://cron-job.org) at `https://your-app.vercel.app/api/health` every
+five minutes if you want to skip that small wait.
 
-Neon's free tier **autosuspends** after inactivity, adding a ~0.5 s cold start to the
-first request. A health endpoint at **`/api/health`** does a cheap DB round-trip to
-wake it. Ping it every ~5 minutes:
+## 4. Sharing the study
 
-- **Free external pinger** (recommended on Vercel Hobby): point
-  [UptimeRobot](https://uptimerobot.com) or [cron-job.org](https://cron-job.org) at
-  `https://<your-app>.vercel.app/api/health` every 5 minutes.
-- **Vercel Cron** (Vercel **Pro** only — Hobby caps crons at once/day): add a
-  `vercel.json` with `{ "crons": [{ "path": "/api/health", "schedule": "*/5 * * * *" }] }`.
+People just open your Vercel link. The app gives each person a role on arrival. Speakers
+fill first so the message pool is ready before any Listener plays, then Novices and
+Experts. The counts live in `src/config/recruitment.json`. Change them to change the mix.
 
-Skipping keep-warm is fine — participants just occasionally wait ~0.5 s on first load.
+To stop new people from joining, stop sharing the link.
 
----
+## 5. The layout toggle
 
-## 4. Wire up Prolific
-
-1. In your Prolific study, set the study URL to your deployed site and let Prolific
-   append its identifiers:
-   `https://<your-app>.vercel.app/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}`
-2. Set the study's **completion URL** to
-   `https://app.prolific.com/submissions/complete?cc=<PROLIFIC_COMPLETION_CODE>`
-   (the app also redirects there itself on finish).
-3. Roles (speaker / novice / expert) are **auto-assigned** by arrival order per
-   `src/config/recruitment.json` — speakers first so the utterance pool fills before
-   any listener runs. Edit those counts to change the mix. You can run it as one
-   combined study, or stage it: recruit the speaker batch first, then open listener
-   slots.
-
-Participants who arrive **without** Prolific params are shown a "start from Prolific"
-screen in production (`requireProlificParams`).
-
----
-
-## 5. The 3-vs-9 trial toggle
-
-`src/config/study-plan.json` → **`layoutsPerTask`**: `1` = the 3-trial study, `3` =
-the 9-trial (3 layouts/task) study. Change the number, commit, push — it redeploys in
-~1–2 min. Runs are tagged `single`/`multi` on the session so the two never blur in
-analysis.
-
----
+`src/config/study-plan.json` has a setting called `layoutsPerTask`. Set it to `1` for one
+layout per game, or `2` for two layouts per game. Change the number, push, and it
+redeploys in a minute or two. Each run is tagged so the two settings never blur in the
+data.
 
 ## 6. Getting your data
 
-- **Admin API** (formatted exports; from any machine):
-  ```bash
-  BASE=https://<your-app>.vercel.app ; KEY=<ADMIN_SECRET>
-  curl -H "x-admin-key: $KEY" "$BASE/api/admin/export?table=trials&format=csv" -o trials.csv
-  curl -H "x-admin-key: $KEY" "$BASE/api/admin/summary" | jq
-  curl -H "x-admin-key: $KEY" "$BASE/api/admin/bonus?format=csv" -o bonus.csv
-  ```
-  Tables: `participants`, `sessions`, `trials`, `events`, `utterances`. Prefer the
-  `x-admin-key` header over `?key=` (query strings can land in logs).
-- **Neon console / psql**: raw SQL anytime via the Neon SQL Editor or
-  `psql "$DATABASE_URL"`. Treat the connection string like a password.
+From any machine:
 
----
+```
+BASE=https://your-app.vercel.app
+KEY=your-admin-secret
+curl -H "x-admin-key: $KEY" "$BASE/api/admin/export?table=dataset&format=csv" -o dataset.csv
+curl -H "x-admin-key: $KEY" "$BASE/api/admin/summary" | jq
+```
+
+Or open `/admin` and use the download buttons. You can also run SQL in the Neon console
+anytime.
 
 ## 7. Changing things after launch
 
-- **Config** (studies, conditions, layouts, `recruitment.json`, consent text, the
-  toggle) — edit JSON, push, auto-deploy. No code.
-- **Code** — push, auto-deploy; preview URLs per branch; **one-click rollback** to any
-  prior deployment in the Vercel dashboard.
-- **Schema** — add columns via Drizzle (`npm run db:generate`), push; `ensureMigrated`
-  applies them. *Additive* changes are zero-downtime; destructive ones (drop/rename)
-  need care and a Neon backup/branch first.
-- **Mid-study caution** — if participants are actively running, **pause recruitment on
-  Prolific → deploy → resume.** Two safeguards keep old data unambiguous: every trial
-  stores a full snapshot of its condition (`trials.condition`), and each session
-  carries its `variant` tag.
+Config changes (studies, conditions, layouts, recruitment counts, consent text, the
+toggle) are just JSON edits. Push and it redeploys, no code needed.
 
----
+Code changes deploy on push. Vercel keeps every past deploy, so you can roll back with
+one click.
+
+Schema changes go through Drizzle. Run `npm run db:generate`, push, and the new columns
+apply on the next request. Adding columns is safe. Dropping or renaming needs care and a
+Neon backup first.
+
+If people are playing right now, hold off on big changes. Wait for a quiet moment. Every
+trial saves a full copy of its settings and every session carries a tag, so old and new
+data never mix.
 
 ## 8. Rough costs
 
-- **Vercel**: free (Hobby) is capacity-sufficient; budget **~$20/mo Pro** if you want
-  sub-daily cron and to stay clear of Hobby's non-commercial terms for funded research.
-- **Neon**: free tier fits this data (well under 0.5 GB); **~$19/mo** (Launch) removes
-  autosuspend and adds branching/restore.
-- **Prolific dominates** — participant payments + ~33% fee are orders of magnitude
-  above infra. Hosting is effectively a rounding error.
+Vercel's free tier is enough for this. Neon's free tier fits the data with room to spare.
+The real cost is paying participants, which is far larger than hosting.
 
----
+## Before you launch
 
-## Pre-launch checklist
-
-- [ ] `DB_DRIVER=neon` and `DATABASE_URL` set in Vercel
-- [ ] `ADMIN_SECRET` changed to a long random value
-- [ ] `PROLIFIC_COMPLETION_CODE` / `PROLIFIC_SCREENOUT_CODE` set from Prolific
-- [ ] `layoutsPerTask` set to the run you intend (1 or 3)
-- [ ] `recruitment.json` counts set for your target sample
-- [ ] Keep-warm configured (Vercel cron on Pro, or a free external pinger)
-- [ ] Consent text in `src/config/prolific.json` reviewed with your IRB
-- [ ] `/api/health` returns `{ ok: true }` on the deployed URL
-- [ ] A test Prolific submission runs end-to-end and returns to Prolific
+- `DB_DRIVER` is `neon` and `DATABASE_URL` is set on Vercel.
+- `ADMIN_SECRET` is a long random value, not the default.
+- `layoutsPerTask` is set to the run you want.
+- `recruitment.json` counts match your target.
+- Consent text in `src/config/prolific.json` is reviewed with your IRB.
+- `/api/health` returns ok on the live URL.
+- A full test run works end to end.

@@ -1,210 +1,114 @@
-# The Fetch Games
+# Fetch Games
 
-A web-based, **asynchronous** two-player reference-game platform for HRI research
-(extending Tellex et al., *"Asking for Help Using Inverse Semantics"*, RSS 2014).
+A web game for a research study at the Cornell Tech AIRLab. It looks at how people give
+instructions to each other when one of them can see everything and the other cannot.
 
-A **robot** knows what it needs but has failed; a **human** can act but lacks the
-robot's knowledge. One utterance is the only bridge. We measure how a listener's
-**familiarity** changes which utterance actually works.
+The idea comes from robotics. A robot knows what it needs but cannot act. A person can
+act but does not know what the robot knows. A single written message is the only link
+between them.
 
-> **The event log is the deliverable.** The game is the instrument that produces it.
+## The two roles
 
-## Why it is not a synchronous app
+The **Speaker** sees the whole scene and writes one message. That is their only move.
 
-The speaker sends **exactly one** utterance and is then locked out; the listener
-acts afterward. The two never need to be online together. So we ship **two
-decoupled single-player Prolific studies** — Study 1 (speakers) writes utterances
-to a pool; Study 2 (listeners) replays them. **No matchmaker, no waiting room.**
+The **Listener** reads only that message and tries to do the task. Listeners come in two
+kinds. Experts get extra context, like the names of parts or which key does what.
+Novices get none of that, so they lean on the message much more. The point of the study
+is to find messages that work even for the person who knows the least.
 
-## Stack
+## The games
 
-- **Next.js (App Router)** — client + serverless API in one Vercel deployable, shared TS types.
-- **Postgres via Drizzle** — one schema for local and prod.
-  - **Local/dev/tests:** [PGlite](https://pglite.dev) — embedded in-process Postgres. No Docker, no server.
-  - **Prod:** [Neon](https://neon.tech) serverless Postgres (free tier, no cold-start).
-- **zod** — every config file and every event is validated at the boundary; malformed input fails loudly.
+Everyone plays three short games, two rounds each, so six rounds in all.
 
-> Local dev uses PGlite instead of a Docker Postgres because it needs no external
-> service and gives the headless engine a real Postgres to test against. The same
-> Drizzle schema migrates unchanged to Neon — set `DB_DRIVER=neon` + `DATABASE_URL`.
+- **Driving:** steer a robot across a grid to a goal using keys.
+- **Repair:** connect the two correct parts on a board.
+- **Retrieval:** walk through a building and pick up the right part.
 
-## Quick start
+After each round the player answers a few quick workload questions (the NASA TLX). That
+gives six workload answers per person, one per round.
 
-```bash
+## How a session works
+
+Everyone opens the same link. The app picks a role for each person on its own. It fills
+every Speaker slot first, so a full set of messages exists before any Listener plays.
+Then it fills Novices and Experts.
+
+A Speaker writes a message and it goes into a shared pool. Later a Listener is handed one
+message from a Speaker who finished, and plays against it. The same message goes to one
+Novice and one Expert, so the two can be compared directly. The app saves the whole
+trail: who wrote the message, who read it, and how they did.
+
+## How roles get filled
+
+Five Speakers, then five Novices, then five Experts. The count is based on people who
+actually finish. If someone quits partway, their slot opens again and the next person
+takes it. Anyone named Test or User, or with a blank name, counts as a test run and is
+left out. This keeps the three groups even no matter who shows up or drops out.
+
+## Tech
+
+- **Next.js** with the App Router. The site and the API ship together on Vercel.
+- **Postgres** through Drizzle. Local runs use PGlite, which runs inside the app with no
+  setup. Production uses Neon.
+- **zod** checks every config file and every saved event, so bad input fails right away
+  instead of quietly corrupting data.
+
+## Run it locally
+
+```
 npm install
-cp .env.example .env.local        # PGlite defaults work out of the box
-npm run db:generate               # SQL migrations from the schema
-npm run verify:skeleton           # end-to-end: config loads + a session persists
+cp .env.example .env.local
+npm run dev
 ```
 
-## Scripts
+Open http://localhost:3000. Local runs use a throwaway database on your machine. They
+cannot reach the live site or its data.
 
-| command | what it does |
-|---|---|
-| `npm run dev` | Next dev server (UI arrives in Milestone 3) |
-| `npm run db:generate` | generate SQL migrations from `src/lib/db/schema.ts` |
-| `npm run db:migrate` | apply migrations to the configured DB |
-| `npm run verify:skeleton` | Milestone 1 acceptance — condition loads, events round-trip the DB |
-| `npm run verify:replay` | Milestone 4 acceptance — speaker writes → pool → replay serves novice+expert |
-| `npm run headless -- --bot oracle` | run a `retrieval` trial headlessly with a scripted bot (`oracle`/`random`/`move-only`); add `--viewpoint rotated`, `--budget N`, `--persist` |
-| `npm run test` | unit tests (vitest) |
-| `npm run typecheck` | `tsc --noEmit` |
-
-## Layout
+To try the games and switch between the Speaker, Novice, and Expert views, add `dev=1`:
 
 ```
-src/
-  app/            # Next.js App Router
-    page.tsx      # landing
-    listener/     # /listener — the Study 2 game flow (client)
-    api/listener/ # start | action | timeout | next  (server, node runtime)
-  components/      # RobotAvatar, GameBoard (view-only, fog already applied server-side)
-  config/
-    conditions/   # experiment cells as JSON (validated) — non-engineers author these
-    maps/         # ASCII grid + JSON legend
-    studies/      # ordered trial plans (which conditions, seeds, feedback flag)
-  lib/
-    server/
-      listener.ts # session orchestration: start/apply/advance/timeout (§8, §9.6)
-    types.ts      # Condition, KeyPanel, Task<State,Action> — shared source of truth (§7, §9)
-    events.ts     # versioned event-log schema — the scientific record (§10)
-    config.ts     # condition + map loaders, fail-loud validation (§9.1)
-    env.ts        # validated environment
-    db/
-      schema.ts   # participants / sessions / trials / events / utterances (§12)
-      client.ts   # dual driver (pglite | neon)
-      writer.ts   # commits each event immediately — never buffered (§15)
-    engine/
-      rng.ts      # seeded deterministic RNG (mulberry32)
-      viewpoint.ts# server-side direction transform (aligned | rotated)
-      registry.ts # task plugin registry (§9.2)
-      runner.ts   # headless trial loop, driven by bots (§9.4)
-      bots.ts     # scripted listeners: oracle / random / move-only
-      index.ts    # barrel: registers tasks, loads built-in maps
-    tasks/
-      retrieval.ts# Task 1 — the whole task in one file + its event adapter (§4)
-scripts/
-  migrate.ts          # apply migrations
-  verify-skeleton.ts  # Milestone 1 acceptance
-  run-headless.ts     # Milestone 2 — run a trial with a bot (CLI)
+http://localhost:3000/listener?study=teleop_pilot&dev=1
+http://localhost:3000/listener?study=repair_pilot&dev=1
+http://localhost:3000/listener?study=listener_pilot&dev=1
+http://localhost:3000/speaker?study=main_speaker
 ```
 
-## Build status
+If you want nothing saved at all, even locally, start the server with an in memory
+database:
 
-- [x] **M1 — Skeleton:** types, config loader, DB schema + event writer. Verified.
-- [x] **M2 — Headless engine + `retrieval` + scripted bot listener.** Deterministic
-      engine, task-plugin registry, viewpoint transform (server-side), fog of war,
-      absent-not-disabled keys, seeded RNG. Bots: oracle / random / move-only.
-      Tests green (determinism, fog-of-war no leak, novice view no key data, budget
-      exhaustion). Run: `npm run headless -- --bot oracle`.
-- [x] **M3 — `/listener` flow + full game UI (Study 2, critical path).** Playable
-      end-to-end against scripted utterances. Server-authoritative state
-      (`trials.state`), fog-filtered `listenerView` over `/api/listener/*`, keyboard
-      + click control, timeout countdown, budget meter, per-condition trial plan
-      (`src/config/studies`), and a crafted game UI (warm identity, expressive robot,
-      mission progress, trial-end reactions). Bigger varied **facility** map (large +
-      medium rooms, 16 objects). **Fog of war visual** — rooms haze until entered,
-      reveal on entry, re-fog on exit. **Novice** = no room labels + no parts key;
-      **Expert** = all labels + parts key (symbol→name). Dev-only
-      **Speaker/Novice/Expert toggle** at `/listener?dev=1` (server-gated OFF in
-      production). The **Speaker** view shows the full map + highlighted target +
-      parts key + a brief, with a compose box that **saves utterances to the
-      `utterances` pool** (`/api/listener/utterance`) — the seed of the M4 speaker
-      flow. Run `npm run dev` → open `/listener?dev=1`.
-- [x] **M4 — `/speaker` flow + utterance pool (replay end-to-end).** Standalone
-      `/speaker` study: see the full scene → write ONE utterance → saved to the
-      `utterances` pool. Replay listener studies **draw from the pool** (least-served,
-      §8.3) and serve the *same* utterance to a novice AND an expert listener
-      (within-utterance comparison), logging `utterance_replayed` traced to the author
-      and folding outcomes into per-utterance success (bonus, §12). Configs:
-      `speaker_pilot` (Study 1), `listener_replay` (Study 2). Verify:
-      `npm run verify:replay`.
-- [x] **M5 — `repair` and `teleop` task plugins.**
-      - **`teleop`** (§6): open **landmark yard** (scattered emoji reference points),
-        hidden goal, control map the novice must infer (no key hints; every press
-        costs budget); expert holds the control key. Dev: `/listener?study=teleop_pilot`.
-      - **`repair`** (§5): click-target TurtleBot diagram; novice sees **shapes only**,
-        expert gets the **labels** (visual→name key); deliberate **trap** (two black
-        cylinders, three wheels); target withheld from the listener, ringed for the
-        speaker. Dev: `/listener?study=repair_pilot`.
-      - Both slot into the shared engine, headless runner, task-aware `/listener` UI,
-        and the task-aware speaker view. 33 tests; browser-verified.
-- [x] **M6 — Prolific integration.** Entry gate at `/`: **mobile block** → **config-driven
-      consent** (with the speaker-bonus notice) → **config-driven attention check**
-      (answer verified server-side). Prolific params (`PROLIFIC_PID`/`STUDY_ID`/
-      `SESSION_ID`) captured and stamped on every session; **required in production**
-      (missing → error, never a null participant). On finish/screen-out, redirect to
-      `PROLIFIC_COMPLETE_BASE?cc=<code>`. Copy in
-      [`src/config/prolific.json`](src/config/prolific.json); codes in env.
-
-      **Prolific study URL:** `https://<host>/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}`
-- [x] **M7 — `/admin` dashboard + exports.** Secret-gated (`ADMIN_SECRET`): live
-      dashboard (sessions started/completed/abandoned, per-condition-cell counts +
-      success + median time/moves, dropout, pool), one-click **CSV/JSONL export** per
-      table (works while running), **Prolific bonus CSV** (`PROLIFIC_PID, amount`),
-      and a **session replay viewer** (step through any participant event-by-event).
-      Seed demo data with `npm run seed:demo`.
-- [ ] M8 — Deploy to free tier + 5-person pilot
-
-## Participant entry, recruitment & the utterance pool
-
-Participants enter at **`/play`** and are assigned a role that is **fixed for all 3
-missions** (stored on `sessions.assignment`). Recruitment is **phased and config-
-driven** via [`src/config/recruitment.json`](src/config/recruitment.json) — the one
-file to edit:
-
-```json
-{ "batches": [
-    { "role": "speaker", "count": 5 },
-    { "role": "novice",  "count": 10 },
-    { "role": "expert",  "count": 10 } ] }
+```
+PGLITE_DATA_DIR="memory://preview" npm run dev
 ```
 
-The Kth arrival gets the covering batch's role, then the pattern **cycles**. With the
-defaults, the first 5 are **speakers** (so the pool is full before any listener), then
-10 novices, then 10 experts. Keep `novice == expert`.
+Nothing is written to disk and everything is gone when you stop the server.
 
-**Utterance pool.** Speakers author one utterance per scene → the pool. Listeners
-**replay** from it: the draw is **least-served-per-condition, random tie-break**, so
-each novice gets a distinct utterance while any remain unused, then the pool spreads
-**evenly** (each utterance served to the same number of novices), and **every
-utterance is used**. Novice and expert serve-counts are independent, so the *same*
-utterance goes to a novice and an expert (within-utterance comparison, §8).
+## The admin page
 
-Roles map to studies: speaker → `main_speaker`, novice/expert → `main_listener`
-(replay). Verify the whole pipeline (recruitment order, even draw, complete record):
-**`npm run verify:recruitment`**.
+Go to `/admin` and enter the admin password. You get:
 
-## Data collection
+- A **dashboard** with the number of finished Speakers, Novices, and Experts, plus
+  results for each game.
+- An **Analysis** tab that compares Novices and Experts as more people play. It shows
+  success rates, effort, the message by message comparison, and workload. It updates on
+  its own.
+- A **download** button for every table as CSV.
 
-Everything needed for analysis is committed as it happens:
+There is a second password that is view only. Share it with people who only need to look
+at the data. It cannot delete anything.
 
-- **`participants`** — prolific pid / study / session, role, consent + completion times, UA.
-- **`sessions`** — one per run: `assignment`, plan, status, start/end.
-- **`trials`** — one per mission, flat & query-ready: `taskId`, `scene`, `assignment`,
-  `seed`, full `condition`, `target`, served `utterance_text` + `utterance_id` +
-  `speaker_session_id` + `speaker_pid` (replay provenance), and the outcome:
-  `correct`, `cost` (moves/keypresses/clicks), **`duration_ms`** (time-to-finish),
-  `chosen_id`, `reason`.
-- **`events`** — the append-only firehose: every move/keypress/click/connect with
-  timestamps, `resolved`, `budget_left`, position; scoped by `trial_index`.
-- **`utterances`** — the pool: text, author, `served_novice` / `served_expert`,
-  aggregate listener success (speaker bonus).
+## Getting the data
 
-- **Novice** — fog + no parts key; a room's **label appears as you enter it** (only
-  the room you're standing in) and updates as you move.
-- **Expert** — fog + all room labels + the parts key.
-- **Speaker** — full map (no fog), target highlighted, writes one utterance per mission.
+Every table can be downloaded as CSV from the admin page. The main file for analysis is
+`dataset`. It has one row per Listener response with the message, who wrote it, who read
+it, and the result. The `tlx` file has the workload answers. The `survey` file has
+demographics and open feedback.
 
-The scenario is **fixed and identical for everyone**: `retrieval_facility` uses
-`fixedLayout: true`, so objects stay at authored positions — nothing about the
-environment is randomized per participant. The 3 missions differ only in the target.
+## Deploying
 
-Direct `/listener` / `/speaker` (no `?sid=`) still start a dev session; add `?dev=1`
-for the Speaker/Novice/Expert view toggle.
+See [docs/deploy.md](docs/deploy.md) for how to put this on Vercel with Neon.
 
-## ⚠️ Pending sign-off (§16)
+## Tests
 
-The **event-log schema** (`src/lib/events.ts`) is **v1, not final**. Per the
-prompt, this must be confirmed before running paid participants. See the open
-questions at the bottom of the build notes.
+```
+npm test
+```
