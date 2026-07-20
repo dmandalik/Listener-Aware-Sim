@@ -73,14 +73,12 @@ http://localhost:3000/listener?study=listener_pilot&dev=1
 http://localhost:3000/speaker?study=main_speaker
 ```
 
-If you want nothing saved at all, even locally, start the server with an in memory
-database:
+The local database is just a file on your machine, in a `.pglite` folder. It never
+touches the live site or its data. To wipe it and start clean, delete the folder:
 
 ```
-PGLITE_DATA_DIR="memory://preview" npm run dev
+rm -rf .pglite
 ```
-
-Nothing is written to disk and everything is gone when you stop the server.
 
 ## The admin page
 

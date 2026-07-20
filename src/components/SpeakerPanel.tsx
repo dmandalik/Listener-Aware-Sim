@@ -58,37 +58,30 @@ export function SpeakerPanel({
       )
     : [];
 
-  // The board key/explanation, written as full sentences and shown ABOVE the briefing
-  // so the speaker understands what they're looking at before they read the task.
+  // The board key, combined into the briefing and emphasized so the speaker sees
+  // exactly what they have to get across. The bold clause is the specific goal.
   const boardNote =
     data.taskId === "repair" ? (
-      <div className="board-note">
-        <span>
-          The two parts circled on the board are the ones to connect: <b>connect {repairPair[0]} and{" "}
-          {repairPair[1]}, and only those two.</b> You can see every part and its name, but the technician
-          must find and connect them from your words alone.
-        </span>
-      </div>
+      <p className="board-note-inline">
+        <b>Get the technician to connect {repairPair[0]} and {repairPair[1]}, and only those two.</b> Those
+        are the two circled parts. You can see every part and its name; the technician has to find them from
+        your words alone.
+      </p>
     ) : data.taskId === "teleop" ? (
-      <div className="board-note">
-        <span>
-          The circled tile on the grid is the goal. You can see the whole grid, the goal, and which key
-          moves the robot each way — the driver can see none of that.
-        </span>
-      </div>
+      <p className="board-note-inline">
+        <b>Get the driver to the circled tile, which is the goal.</b> You can see the whole grid, the goal,
+        and which key moves the robot each way. The driver can see none of that.
+      </p>
     ) : (
-      <div className="board-note">
-        <span>
-          The circled item is the part to retrieve, and the green marker shows where the helper starts.
-          You can see the whole building, but the helper can only ever see the room they are standing in.
-        </span>
-      </div>
+      <p className="board-note-inline">
+        <b>Get the helper to pick up the circled item, which is the part to retrieve.</b> The green marker
+        shows where they start. You can see the whole building; the helper only ever sees the room they are
+        standing in.
+      </p>
     );
 
   return (
     <div className="stack" style={{ gap: 16 }}>
-      {boardNote}
-
       <div className="card speaker-brief">
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
           <RobotAvatar mood="sad" size={44} />
@@ -96,6 +89,7 @@ export function SpeakerPanel({
             <div className="eyebrow" style={{ color: "var(--gold)" }}>Speaker briefing</div>
             <p style={{ margin: "6px 0 0", lineHeight: 1.5 }}>{data.description}</p>
             <p className="prompt">{data.prompt}</p>
+            {boardNote}
           </div>
         </div>
       </div>

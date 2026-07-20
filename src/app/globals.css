@@ -568,6 +568,21 @@ button {
   color: var(--ink);
   font-weight: 600;
 }
+/* The board key combined into the speaker briefing. Stressed with a gold accent bar
+   and a wash so the speaker sees exactly what they must get across. */
+.board-note-inline {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--gold);
+  background: rgba(224, 165, 63, 0.1);
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.board-note-inline b {
+  color: var(--ink);
+}
 .game-guide {
   font-size: 15px;
   color: var(--ink);
