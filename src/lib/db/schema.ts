@@ -203,6 +203,9 @@ export const surveys = pgTable(
     genderOther: text("gender_other"),
     race: jsonb("race"), // string[] — select all that apply
     raceOther: text("race_other"),
+    // Self-reported familiarity with robots, asked once at intake (required). 0 = none
+    // at all … 4 = works with robots frequently as part of their profession.
+    robotFamiliarity: integer("robot_familiarity"),
     // Legacy end-of-study NASA-TLX (superseded by per-trial trialSurveys).
     tlxMental: integer("tlx_mental"),
     tlxPhysical: integer("tlx_physical"),
@@ -244,6 +247,13 @@ export const trialSurveys = pgTable(
     tlxPerformance: integer("tlx_performance"),
     tlxEffort: integer("tlx_effort"),
     tlxFrustration: integer("tlx_frustration"),
+    // Extra per-trial self-reports, 0–100. LISTENER trials record how well they
+    // understood the message (comprehension) and how useful it was (usefulness);
+    // SPEAKER trials record how confident they are a listener could follow it
+    // (confidence). Each is null on the role it doesn't apply to.
+    comprehension: integer("comprehension"),
+    usefulness: integer("usefulness"),
+    confidence: integer("confidence"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),

@@ -1110,6 +1110,9 @@ export async function saveTrialSurvey(args: {
   tlxPerformance: number;
   tlxEffort: number;
   tlxFrustration: number;
+  comprehension?: number | null;
+  usefulness?: number | null;
+  confidence?: number | null;
   feedback?: string | null;
 }): Promise<void> {
   await ready();
@@ -1133,6 +1136,9 @@ export async function saveTrialSurvey(args: {
     tlxPerformance: args.tlxPerformance,
     tlxEffort: args.tlxEffort,
     tlxFrustration: args.tlxFrustration,
+    comprehension: args.comprehension ?? null,
+    usefulness: args.usefulness ?? null,
+    confidence: args.confidence ?? null,
   });
   // Open-ended feedback is asked once, on the final trial → session survey row.
   if (args.feedback != null && args.feedback !== "") {

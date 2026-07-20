@@ -48,14 +48,20 @@ export async function POST(req: Request) {
     const race = Array.isArray(body.race)
       ? (body.race as unknown[]).filter((x) => typeof x === "string").slice(0, 12)
       : null;
+    const rf = Number(body.robotFamiliarity);
+    const robotFamiliarity = Number.isInteger(rf) && rf >= 0 && rf <= 4 ? rf : null;
     const demo = {
       ageRange: clean(body.ageRange),
       gender: clean(body.gender),
       genderOther: clean(body.genderOther),
       race: race as string[] | null,
       raceOther: clean(body.raceOther),
+      robotFamiliarity,
     };
-    if (demo.ageRange || demo.gender || demo.genderOther || (race && race.length) || demo.raceOther) {
+    if (
+      demo.ageRange || demo.gender || demo.genderOther || (race && race.length) ||
+      demo.raceOther || demo.robotFamiliarity != null
+    ) {
       await saveSurvey({ sessionId: result.sessionId, ...demo });
     }
     return NextResponse.json(result);

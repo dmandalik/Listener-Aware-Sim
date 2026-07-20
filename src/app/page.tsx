@@ -6,6 +6,15 @@ import { isMobileDevice } from "@/lib/mobile";
 
 const AGES = ["18–24", "25–34", "35–44", "45–54", "55–64", "65 or older", "Prefer not to say"];
 const GENDERS = ["Woman", "Man", "Non-binary", "Prefer to self-describe", "Prefer not to say"];
+// Robot familiarity self-report (required). Index 0–4 is stored; the wording runs
+// from no experience at all to using robots as part of one's job.
+const ROBOT_FAMILIARITY = [
+  "Not at all — I have never used or interacted with a robot",
+  "Slightly — I have tried one a few times",
+  "Somewhat — I use or interact with robots now and then",
+  "Very — I use robots regularly",
+  "Extremely — I work with robots frequently as part of my job",
+];
 const RACES = [
   "Asian",
   "Black or African American",
@@ -50,6 +59,7 @@ export default function Entry() {
   const [genderOther, setGenderOther] = useState("");
   const [race, setRace] = useState<string[]>([]);
   const [raceOther, setRaceOther] = useState("");
+  const [robotFamiliarity, setRobotFamiliarity] = useState<number | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -88,12 +98,13 @@ export default function Entry() {
         genderOther: gender === "Prefer to self-describe" ? genderOther.trim() || null : null,
         race,
         raceOther: race.includes("Other") ? raceOther.trim() || null : null,
+        robotFamiliarity,
       }),
     );
     setStep("go");
     const qs = new URLSearchParams(params).toString();
     window.location.assign(qs ? `/play?${qs}` : "/play");
-  }, [params, firstName, lastName, email, age, gender, genderOther, race, raceOther]);
+  }, [params, firstName, lastName, email, age, gender, genderOther, race, raceOther, robotFamiliarity]);
 
   const agree = useCallback(() => {
     setStep("name");
@@ -186,7 +197,8 @@ export default function Entry() {
 
   if (step === "name") {
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-    const canStart = !!firstName.trim() && !!lastName.trim() && emailOk;
+    // Robot familiarity is REQUIRED (unlike the optional demographics below).
+    const canStart = !!firstName.trim() && !!lastName.trim() && emailOk && robotFamiliarity != null;
     // Plain helper (NOT a component) so inputs keep focus while typing.
     const choice = (
       opts: string[],
@@ -250,6 +262,13 @@ export default function Entry() {
             <input autoFocus value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" maxLength={80} style={fieldStyle} />
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" maxLength={80} style={{ ...fieldStyle, marginTop: 10 }} />
             <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" autoComplete="email" placeholder="Email address" maxLength={160} style={{ ...fieldStyle, marginTop: 10 }} />
+            <div style={{ fontWeight: 600, margin: "18px 0 2px" }}>How familiar are you with robots?</div>
+            <div style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 8 }}>This one is required. Pick the option that best describes you.</div>
+            {choice(
+              ROBOT_FAMILIARITY,
+              (o) => robotFamiliarity != null && ROBOT_FAMILIARITY[robotFamiliarity] === o,
+              (o) => setRobotFamiliarity(ROBOT_FAMILIARITY.indexOf(o)),
+            )}
             {label("What is your age range?")}
             {choice(AGES, (o) => age === o, setAge)}
             {label("Gender identity")}
@@ -267,7 +286,7 @@ export default function Entry() {
           <div style={{ padding: "12px 28px 20px", borderTop: "1px solid var(--line)" }}>
             <button className="btn" disabled={!canStart} onClick={goToPlay} style={{ width: "100%" }}>Start →</button>
             {!canStart && (
-              <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Please enter your first name, last name, and a valid email.</p>
+              <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Please enter your first name, last name, a valid email, and how familiar you are with robots.</p>
             )}
           </div>
         </div>

@@ -762,6 +762,7 @@ export interface SurveyArgs {
   genderOther?: string | null;
   race?: string[] | null;
   raceOther?: string | null;
+  robotFamiliarity?: number | null;
   tlxMental?: number | null;
   tlxPhysical?: number | null;
   tlxTemporal?: number | null;
@@ -785,6 +786,7 @@ export async function upsertSurvey(a: SurveyArgs): Promise<void> {
     genderOther: a.genderOther,
     race: a.race,
     raceOther: a.raceOther,
+    robotFamiliarity: a.robotFamiliarity,
     tlxMental: a.tlxMental,
     tlxPhysical: a.tlxPhysical,
     tlxTemporal: a.tlxTemporal,
@@ -819,6 +821,11 @@ export interface TrialSurveyArgs {
   tlxPerformance: number;
   tlxEffort: number;
   tlxFrustration: number;
+  // Role-specific extras (0–100). Listener: comprehension + usefulness. Speaker:
+  // confidence. Null on the role each doesn't apply to.
+  comprehension?: number | null;
+  usefulness?: number | null;
+  confidence?: number | null;
 }
 
 /** Save (or replace) the NASA-TLX rating for one trial. One row per (session, trial),
@@ -841,6 +848,9 @@ export async function upsertTrialSurvey(a: TrialSurveyArgs): Promise<void> {
     tlxPerformance: a.tlxPerformance,
     tlxEffort: a.tlxEffort,
     tlxFrustration: a.tlxFrustration,
+    comprehension: a.comprehension ?? null,
+    usefulness: a.usefulness ?? null,
+    confidence: a.confidence ?? null,
   };
   const { sessionId, trialIndex, ...set } = values;
   await db

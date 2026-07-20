@@ -534,6 +534,7 @@ async function getSurvey(): Promise<any[]> {
       gender: s.gender === "Prefer to self-describe" && s.genderOther ? s.genderOther : s.gender,
       race: Array.isArray(s.race) ? s.race.join("; ") : s.race,
       raceOther: s.raceOther,
+      robotFamiliarity: s.robotFamiliarity,
       feedback: s.feedback,
       createdAt: s.createdAt,
     }))
@@ -575,6 +576,10 @@ async function getTlx(): Promise<any[]> {
         tlxEffort: s.tlxEffort,
         tlxFrustration: s.tlxFrustration,
         tlxRaw: vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null,
+        // Role-specific extras: comprehension/usefulness (listener), confidence (speaker).
+        comprehension: s.comprehension,
+        usefulness: s.usefulness,
+        confidence: s.confidence,
         createdAt: s.createdAt,
       };
     })

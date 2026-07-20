@@ -138,6 +138,7 @@ export default function SpeakerPage() {
         isLast={payload.missionNumber >= payload.missionTotal}
         missionNumber={payload.missionNumber}
         missionTotal={payload.missionTotal}
+        role="speaker"
         onDone={() => goTo(payload.trialIndex + 1)}
       />
     );

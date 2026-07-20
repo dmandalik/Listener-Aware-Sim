@@ -355,6 +355,7 @@ export default function ListenerPage() {
         isLast={payload.missionNumber >= payload.missionTotal}
         missionNumber={payload.missionNumber}
         missionTotal={payload.missionTotal}
+        role="listener"
         onDone={goNext}
       />
     );

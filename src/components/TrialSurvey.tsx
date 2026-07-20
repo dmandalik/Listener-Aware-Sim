@@ -16,6 +16,17 @@ const TLX = [
   { key: "tlxFrustration", label: "Frustration", q: "How insecure, discouraged, irritated, or stressed were you?", lo: "Very low", hi: "Very high" },
 ] as const;
 
+// Role-specific questions shown ABOVE the NASA-TLX. Listeners rate the message they
+// received; speakers rate how confident they are in the message they wrote. All are
+// 0–100 sliders, worded so higher always means "better".
+const LISTENER_EXTRAS = [
+  { key: "comprehension", label: "Understanding the message", q: "How well did you understand the message you were given?", lo: "Not at all", hi: "Completely" },
+  { key: "usefulness", label: "Usefulness of the message", q: "How useful was the message for completing this task?", lo: "Not useful at all", hi: "Extremely useful" },
+] as const;
+const SPEAKER_EXTRAS = [
+  { key: "confidence", label: "Confidence in your message", q: "How likely is it that the person reading your message could follow it and complete the task successfully?", lo: "Very unlikely", hi: "Very likely" },
+] as const;
+
 // Module-level (stable identity) so the feedback textarea never remounts on state
 // change, which would drop input focus.
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -33,6 +44,7 @@ export function TrialSurvey({
   isLast,
   missionNumber,
   missionTotal,
+  role,
   onDone,
 }: {
   sessionId: string;
@@ -40,11 +52,16 @@ export function TrialSurvey({
   isLast: boolean;
   missionNumber: number;
   missionTotal: number;
+  role: "speaker" | "listener";
   onDone: () => void;
 }) {
+  const extras = role === "speaker" ? SPEAKER_EXTRAS : LISTENER_EXTRAS;
   // Every slider starts at the neutral midpoint so it always counts as answered.
   const [tlx, setTlx] = useState<Record<string, number>>(() =>
     Object.fromEntries(TLX.map((t) => [t.key, 50])),
+  );
+  const [extra, setExtra] = useState<Record<string, number>>(() =>
+    Object.fromEntries(extras.map((e) => [e.key, 50])),
   );
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
@@ -66,6 +83,9 @@ export function TrialSurvey({
           ...Object.fromEntries(
             TLX.map((t) => [t.key, t.key === "tlxPerformance" ? 100 - (tlx[t.key] ?? 50) : tlx[t.key]]),
           ),
+          // Role-specific extras (comprehension/usefulness for listeners, confidence
+          // for speakers). Stored as shown — higher is always the "better" end.
+          ...Object.fromEntries(extras.map((e) => [e.key, extra[e.key] ?? 50])),
           ...(isLast ? { feedback: feedback || null } : {}),
         }),
       });
@@ -89,6 +109,36 @@ export function TrialSurvey({
             ? "Last one. How did that final round feel?"
             : `How did that round feel? (round ${missionNumber} of ${missionTotal})`}
         </p>
+
+        <Section title={role === "speaker" ? "Your message" : "The message you got"}>
+          <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "0 0 14px" }}>
+            Drag each slider to where it fits. Each starts in the middle.
+          </p>
+          {extras.map((e) => (
+            <div key={e.key} style={{ marginBottom: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontWeight: 600 }}>{e.label}</span>
+                <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--accent-ink)", fontWeight: 600 }}>
+                  {extra[e.key]}
+                </span>
+              </div>
+              <div style={{ fontSize: 14, color: "var(--ink)", margin: "2px 0 8px" }}>{e.q}</div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={extra[e.key]}
+                onChange={(ev) => setExtra((p) => ({ ...p, [e.key]: Number(ev.target.value) }))}
+                style={{ width: "100%", accentColor: "var(--accent)" }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-soft)" }}>
+                <span>{e.lo}</span>
+                <span>{e.hi}</span>
+              </div>
+            </div>
+          ))}
+        </Section>
 
         <Section title="How this round felt">
           <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "0 0 14px" }}>

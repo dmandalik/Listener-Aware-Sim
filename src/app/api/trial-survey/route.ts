@@ -22,6 +22,19 @@ export async function POST(req: Request) {
       }
       tlx[k] = Math.round(v);
     }
+    // Role-specific 0–100 extras. Optional (only the relevant role sends them); when
+    // present they must be a valid 0–100 number.
+    const extra: Record<"comprehension" | "usefulness" | "confidence", number | null> = {
+      comprehension: null, usefulness: null, confidence: null,
+    };
+    for (const k of ["comprehension", "usefulness", "confidence"] as const) {
+      if (b[k] == null) continue;
+      const v = Number(b[k]);
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        return NextResponse.json({ error: `${k} must be a number 0–100` }, { status: 400 });
+      }
+      extra[k] = Math.round(v);
+    }
     await saveTrialSurvey({
       sessionId: b.sessionId,
       trialIndex: b.trialIndex,
@@ -32,6 +45,9 @@ export async function POST(req: Request) {
       tlxPerformance: tlx.tlxPerformance!,
       tlxEffort: tlx.tlxEffort!,
       tlxFrustration: tlx.tlxFrustration!,
+      comprehension: extra.comprehension,
+      usefulness: extra.usefulness,
+      confidence: extra.confidence,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
