@@ -24,7 +24,7 @@ const LISTENER_EXTRAS = [
   { key: "usefulness", label: "Usefulness of the message", q: "How useful was the message for completing this task?", lo: "Not useful at all", hi: "Extremely useful" },
 ] as const;
 const SPEAKER_EXTRAS = [
-  { key: "confidence", label: "Confidence in your message", q: "How likely is it that the person reading your message could follow it and complete the task successfully?", lo: "Very unlikely", hi: "Very likely" },
+  { key: "confidence", label: "Confidence in your message", q: "How likely do you think it is that the person reading your message could follow it and complete the task successfully?", lo: "Very unlikely", hi: "Very likely" },
 ] as const;
 
 // Module-level (stable identity) so the feedback textarea never remounts on state

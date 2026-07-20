@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       ? (body.race as unknown[]).filter((x) => typeof x === "string").slice(0, 12)
       : null;
     const rf = Number(body.robotFamiliarity);
-    const robotFamiliarity = Number.isInteger(rf) && rf >= 0 && rf <= 4 ? rf : null;
+    const robotFamiliarity = Number.isInteger(rf) && rf >= 1 && rf <= 5 ? rf : null;
     const demo = {
       ageRange: clean(body.ageRange),
       gender: clean(body.gender),

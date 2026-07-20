@@ -203,8 +203,8 @@ export const surveys = pgTable(
     genderOther: text("gender_other"),
     race: jsonb("race"), // string[] — select all that apply
     raceOther: text("race_other"),
-    // Self-reported familiarity with robots, asked once at intake (required). 0 = none
-    // at all … 4 = works with robots frequently as part of their profession.
+    // Self-reported familiarity with robots, asked once at intake (required). A 5-point
+    // Likert value: 1 = not familiar at all … 5 = uses robots as part of their job.
     robotFamiliarity: integer("robot_familiarity"),
     // Legacy end-of-study NASA-TLX (superseded by per-trial trialSurveys).
     tlxMental: integer("tlx_mental"),

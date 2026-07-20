@@ -6,14 +6,14 @@ import { isMobileDevice } from "@/lib/mobile";
 
 const AGES = ["18–24", "25–34", "35–44", "45–54", "55–64", "65 or older", "Prefer not to say"];
 const GENDERS = ["Woman", "Man", "Non-binary", "Prefer to self-describe", "Prefer not to say"];
-// Robot familiarity self-report (required). Index 0–4 is stored; the wording runs
-// from no experience at all to using robots as part of one's job.
+// Robot familiarity self-report (required), a 5-point Likert scale. Stored as 1–5;
+// point 1 is no experience at all, point 5 is using robots as part of one's job.
 const ROBOT_FAMILIARITY = [
-  "Not at all — I have never used or interacted with a robot",
-  "Slightly — I have tried one a few times",
-  "Somewhat — I use or interact with robots now and then",
-  "Very — I use robots regularly",
-  "Extremely — I work with robots frequently as part of my job",
+  "Not familiar at all",
+  "Slightly familiar",
+  "Moderately familiar",
+  "Very familiar",
+  "Extremely familiar — I use robots as part of my job",
 ];
 const RACES = [
   "Asian",
@@ -263,11 +263,40 @@ export default function Entry() {
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" maxLength={80} style={{ ...fieldStyle, marginTop: 10 }} />
             <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" autoComplete="email" placeholder="Email address" maxLength={160} style={{ ...fieldStyle, marginTop: 10 }} />
             <div style={{ fontWeight: 600, margin: "18px 0 2px" }}>How familiar are you with robots?</div>
-            <div style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 8 }}>This one is required. Pick the option that best describes you.</div>
-            {choice(
-              ROBOT_FAMILIARITY,
-              (o) => robotFamiliarity != null && ROBOT_FAMILIARITY[robotFamiliarity] === o,
-              (o) => setRobotFamiliarity(ROBOT_FAMILIARITY.indexOf(o)),
+            <div style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 8 }}>This one is required. 1 is the lowest, 5 is the highest.</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[1, 2, 3, 4, 5].map((n) => {
+                const sel = robotFamiliarity === n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setRobotFamiliarity(n)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 0",
+                      borderRadius: 8,
+                      border: `1px solid ${sel ? "var(--accent)" : "var(--line)"}`,
+                      background: sel ? "var(--accent-wash)" : "transparent",
+                      color: "var(--ink)",
+                      cursor: "pointer",
+                      fontSize: 16,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
+              <span>Not familiar at all</span>
+              <span>Use them for my job</span>
+            </div>
+            {robotFamiliarity != null && (
+              <div style={{ fontSize: 13, color: "var(--accent-ink)", fontWeight: 600, marginTop: 6 }}>
+                {ROBOT_FAMILIARITY[robotFamiliarity - 1]}
+              </div>
             )}
             {label("What is your age range?")}
             {choice(AGES, (o) => age === o, setAge)}

@@ -534,7 +534,9 @@ async function getSurvey(): Promise<any[]> {
       gender: s.gender === "Prefer to self-describe" && s.genderOther ? s.genderOther : s.gender,
       race: Array.isArray(s.race) ? s.race.join("; ") : s.race,
       raceOther: s.raceOther,
-      robotFamiliarity: s.robotFamiliarity,
+      // Required going forward, so a blank one is a participant from before this
+      // question existed — labelled so it's never mistaken for a skipped answer.
+      robotFamiliarity: s.robotFamiliarity ?? "not asked",
       feedback: s.feedback,
       createdAt: s.createdAt,
     }))
@@ -558,6 +560,11 @@ async function getTlx(): Promise<any[]> {
       const vals = [s.tlxMental, s.tlxPhysical, s.tlxTemporal, s.tlxPerformance, s.tlxEffort, s.tlxFrustration].filter(
         (v) => v != null,
       ) as number[];
+      // Role decides which extras apply. For the applicable field, a blank means the
+      // participant came before the question existed ("not asked"); the field that
+      // doesn't apply to their role is "n/a".
+      const isListener = s.assignment === "novice" || s.assignment === "expert";
+      const applied = (v: number | null) => v ?? "not asked";
       return {
         prolificPid: s.prolificPid,
         name: s.prolificPid ? nameByPid.get(s.prolificPid) ?? null : null,
@@ -577,9 +584,9 @@ async function getTlx(): Promise<any[]> {
         tlxFrustration: s.tlxFrustration,
         tlxRaw: vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null,
         // Role-specific extras: comprehension/usefulness (listener), confidence (speaker).
-        comprehension: s.comprehension,
-        usefulness: s.usefulness,
-        confidence: s.confidence,
+        comprehension: isListener ? applied(s.comprehension) : "n/a",
+        usefulness: isListener ? applied(s.usefulness) : "n/a",
+        confidence: isListener ? "n/a" : applied(s.confidence),
         createdAt: s.createdAt,
       };
     })
