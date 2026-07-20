@@ -17,6 +17,8 @@ import { eq } from "drizzle-orm";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { events, participants, sessions, surveys, trials, utterances } from "@/lib/db/schema";
 import {
+  countActiveAssignments,
+  countCompletedAssignments,
   deleteSessionsByPid,
   drawUtterance,
   insertUtterance,
@@ -232,6 +234,29 @@ describe("purgeIncompleteSessions", () => {
     expect(u.completedNovice).toBe(0);
     expect(u.listenerTrials).toBe(0);
     expect(u.successRate).toBeNull();
+  });
+
+  it("recruitment counts exclude test-name, blank-name, and unfinished runs", async () => {
+    const db = await getDb();
+    const mk = async (pid: string, first: string | null, last: string | null, status: "started" | "completed") => {
+      await upsertParticipant({ prolificPid: pid, studyId: "S", sessionId: pid + "-ps", role: "speaker", firstName: first, lastName: last });
+      await startSession({ id: pid + "-s", prolificPid: pid, role: "speaker", plan: {}, assignment: "speaker" });
+      await db.update(sessions).set({ status }).where(eq(sessions.id, pid + "-s"));
+    };
+    await mk("REAL", "Alice", "Smith", "completed");     // the only one that should count
+    await mk("TESTU", "Test", "User", "completed");      // test name
+    await mk("TESTU2", "test", "user", "completed");     // any capitalization
+    await mk("LASTU", "Somebody", "User", "completed");  // lastName = User
+    await mk("BLANK", null, null, "completed");          // blank name
+    await mk("WIP", "Bob", "Jones", "started");          // real but unfinished
+
+    const completed = await countCompletedAssignments();
+    expect(completed.speaker).toBe(1); // ONLY the real, completed speaker
+    expect(completed.novice).toBe(0);
+    expect(completed.expert).toBe(0);
+
+    const active = await countActiveAssignments();
+    expect(active.speaker).toBe(1); // only the real in-progress one (WIP); test runs excluded
   });
 
   it("reconcile heals inflated counters from the actual trials", async () => {
