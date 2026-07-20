@@ -66,6 +66,9 @@ export function TrialSurvey({
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // On the final trial the open-ended feedback lives on its OWN page, shown after the
+  // sliders, so the two aren't crowded together. Non-final trials never reach it.
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const submit = async () => {
     if (saving) return;
@@ -96,6 +99,57 @@ export function TrialSurvey({
       setSaving(false);
     }
   };
+
+  // Final trial only: a dedicated page for the open-ended feedback, reached after the
+  // sliders. Its button is the one that actually saves the survey and finishes.
+  if (isLast && showFeedback) {
+    return (
+      <main className="center-screen" style={{ alignItems: "flex-start", padding: "32px 20px" }}>
+        <div style={{ width: "min(620px, 94vw)", margin: "0 auto" }}>
+          <div style={{ display: "grid", placeItems: "center", marginBottom: 10 }}>
+            <RobotAvatar mood="thanking" size={64} />
+          </div>
+          <h1 style={{ textAlign: "center", margin: "0 0 6px" }}>One last thing</h1>
+          <p style={{ textAlign: "center", color: "var(--ink-soft)", marginBottom: 22 }}>
+            A little feedback before you go. This is optional.
+          </p>
+
+          <Section title="Your feedback">
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              In a sentence or two, what worked well and what (if anything) was confusing or frustrating?
+            </div>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              maxLength={2000}
+              rows={4}
+              placeholder="e.g., the driving game was clear, but I found the repair parts hard to tell apart…"
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                fontSize: 15,
+                fontFamily: "var(--font-sans)",
+                resize: "vertical",
+                minHeight: 96,
+              }}
+            />
+          </Section>
+
+          {error && <p style={{ color: "var(--alert)", marginBottom: 10 }}>{error}</p>}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 40 }}>
+            <button className="btn ghost" onClick={() => { setError(null); setShowFeedback(false); }} disabled={saving}>
+              ← Back
+            </button>
+            <button className="btn" onClick={submit} disabled={saving}>
+              {saving ? "Saving…" : "Submit & finish →"}
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="center-screen" style={{ alignItems: "flex-start", padding: "32px 20px" }}>
@@ -170,35 +224,12 @@ export function TrialSurvey({
           ))}
         </Section>
 
-        {isLast && (
-          <Section title="Your feedback">
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>
-              In a sentence or two, what worked well and what (if anything) was confusing or frustrating?
-            </div>
-            <textarea
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              maxLength={2000}
-              rows={3}
-              placeholder="e.g., the driving game was clear, but I found the repair parts hard to tell apart…"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 8,
-                border: "1px solid var(--line)",
-                fontSize: 15,
-                fontFamily: "var(--font-sans)",
-                resize: "vertical",
-                minHeight: 72,
-              }}
-            />
-          </Section>
-        )}
-
         {error && <p style={{ color: "var(--alert)", marginBottom: 10 }}>{error}</p>}
         <div style={{ display: "grid", placeItems: "center", marginBottom: 40 }}>
-          <button className="btn" onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : isLast ? "Submit & finish →" : "Continue →"}
+          {/* On the last trial, advance to the separate feedback page instead of
+              submitting here; every other trial submits and moves on. */}
+          <button className="btn" onClick={isLast ? () => { setError(null); setShowFeedback(true); } : submit} disabled={saving}>
+            {saving ? "Saving…" : "Continue →"}
           </button>
         </div>
       </div>
