@@ -6,7 +6,6 @@
 
 import { useRef, useState } from "react";
 import { GameBoard, type RetrievalListenerWorld } from "@/components/GameBoard";
-import { HumanToken } from "@/components/BoardTokens";
 import { TeleopBoard, type TeleopListenerWorld } from "@/components/TeleopBoard";
 import { RepairDiagram } from "@/components/RepairDiagram";
 import { RobotAvatar } from "@/components/RobotAvatar";
@@ -59,34 +58,37 @@ export function SpeakerPanel({
       )
     : [];
 
-  // The board key/explanation — shown ABOVE the board (never hidden below it) so
-  // the speaker reads what they're looking at before they write.
+  // The board key/explanation, written as full sentences and shown ABOVE the briefing
+  // so the speaker understands what they're looking at before they read the task.
   const boardNote =
     data.taskId === "repair" ? (
       <div className="board-note">
-        <span className="legend-target"><span className="ring" /> = the two parts to connect</span>
         <span>
-          Connect <b>{repairPair[0]}</b> &harr; <b>{repairPair[1]}</b> — those two parts only.
+          The two parts circled on the board are the ones to connect: <b>connect {repairPair[0]} and{" "}
+          {repairPair[1]}, and only those two.</b> You can see every part and its name, but the technician
+          must find and connect them from your words alone.
         </span>
-        <span>The technician must connect them from your words alone.</span>
       </div>
     ) : data.taskId === "teleop" ? (
       <div className="board-note">
-        <span className="legend-target"><span className="ring" /> = the goal</span>
-        <span>You see the whole track and the goal. The driver sees neither.</span>
+        <span>
+          The circled tile on the grid is the goal. You can see the whole grid, the goal, and which key
+          moves the robot each way — the driver can see none of that.
+        </span>
       </div>
     ) : (
       <div className="board-note">
-        <span className="legend-target"><span className="ring" /> = the part to retrieve</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <HumanToken size={17} /> = where the helper starts
+        <span>
+          The circled item is the part to retrieve, and the green marker shows where the helper starts.
+          You can see the whole building, but the helper can only ever see the room they are standing in.
         </span>
-        <span>You see the whole building. The helper will not.</span>
       </div>
     );
 
   return (
     <div className="stack" style={{ gap: 16 }}>
+      {boardNote}
+
       <div className="card speaker-brief">
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
           <RobotAvatar mood="sad" size={44} />
@@ -97,8 +99,6 @@ export function SpeakerPanel({
           </div>
         </div>
       </div>
-
-      {boardNote}
 
       <div className="play-area">
         {data.taskId === "repair" && data.repair ? (

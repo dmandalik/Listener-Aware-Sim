@@ -226,7 +226,7 @@ const SPEAKER_BRIEF: Record<string, { description: string; prompt: string }> = {
     description:
       "Someone will drive this robot to the goal (highlighted below). They drive by pressing keys on " +
       "their keyboard — one step per press — but they cannot see the goal, and the drive keys are random " +
-      "letters they don't know. You can see everything: the whole track, the goal, and which letter moves " +
+      "letters they don't know. You can see everything: the whole grid, the goal, and which letter moves " +
       "the robot which way.",
     prompt:
       "Write ONE message that gets the driver to the goal. Let your instructions contain the route, the keys, or both " +
