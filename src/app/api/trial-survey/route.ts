@@ -22,18 +22,18 @@ export async function POST(req: Request) {
       }
       tlx[k] = Math.round(v);
     }
-    // Role-specific 0–100 extras. Optional (only the relevant role sends them); when
-    // present they must be a valid 0–100 number.
+    // Role-specific extras on a 1–5 Likert scale. Optional (only the relevant role
+    // sends them); when present they must be a whole number from 1 to 5.
     const extra: Record<"comprehension" | "usefulness" | "confidence", number | null> = {
       comprehension: null, usefulness: null, confidence: null,
     };
     for (const k of ["comprehension", "usefulness", "confidence"] as const) {
       if (b[k] == null) continue;
       const v = Number(b[k]);
-      if (!Number.isFinite(v) || v < 0 || v > 100) {
-        return NextResponse.json({ error: `${k} must be a number 0–100` }, { status: 400 });
+      if (!Number.isInteger(v) || v < 1 || v > 5) {
+        return NextResponse.json({ error: `${k} must be a whole number 1–5` }, { status: 400 });
       }
-      extra[k] = Math.round(v);
+      extra[k] = v;
     }
     await saveTrialSurvey({
       sessionId: b.sessionId,

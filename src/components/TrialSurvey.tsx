@@ -17,8 +17,8 @@ const TLX = [
 ] as const;
 
 // Role-specific questions shown ABOVE the NASA-TLX. Listeners rate the message they
-// received; speakers rate how confident they are in the message they wrote. All are
-// 0–100 sliders, worded so higher always means "better".
+// received; speakers rate how confident they are in the message they wrote. Each is a
+// 5-point Likert scale (1 = the low anchor, 5 = the high anchor), higher = "better".
 const LISTENER_EXTRAS = [
   { key: "comprehension", label: "Understanding the message", q: "How well did you understand the message you were given?", lo: "Not at all", hi: "Completely" },
   { key: "usefulness", label: "Usefulness of the message", q: "How useful was the message for completing this task?", lo: "Not useful at all", hi: "Extremely useful" },
@@ -64,8 +64,10 @@ export function TrialSurvey({
   const [tlx, setTlx] = useState<Record<string, number>>(() =>
     Object.fromEntries(TLX.map((t) => [t.key, 50])),
   );
+  // The role-specific questions are 5-point Likert scales; start at the neutral middle
+  // (3) so each always counts as answered.
   const [extra, setExtra] = useState<Record<string, number>>(() =>
-    Object.fromEntries(extras.map((e) => [e.key, 50])),
+    Object.fromEntries(extras.map((e) => [e.key, 3])),
   );
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
@@ -98,8 +100,8 @@ export function TrialSurvey({
             TLX.map((t) => [t.key, t.key === "tlxPerformance" ? 100 - (tlx[t.key] ?? 50) : tlx[t.key]]),
           ),
           // Role-specific extras (comprehension/usefulness for listeners, confidence
-          // for speakers). Stored as shown — higher is always the "better" end.
-          ...Object.fromEntries(extras.map((e) => [e.key, extra[e.key] ?? 50])),
+          // for speakers) on a 1–5 Likert scale. Higher is always the "better" end.
+          ...Object.fromEntries(extras.map((e) => [e.key, extra[e.key] ?? 3])),
           ...(isLast ? { feedback: feedback || null } : {}),
         }),
       });
@@ -177,27 +179,38 @@ export function TrialSurvey({
 
         <Section title={role === "speaker" ? "Your message" : "The message you got"}>
           <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "0 0 14px" }}>
-            Drag each slider to where it fits. Each starts in the middle.
+            Pick a number from 1 to 5 for each. 1 is the lowest, 5 is the highest.
           </p>
           {extras.map((e) => (
-            <div key={e.key} style={{ marginBottom: 18 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <span style={{ fontWeight: 600 }}>{e.label}</span>
-                <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--accent-ink)", fontWeight: 600 }}>
-                  {extra[e.key]}
-                </span>
-              </div>
+            <div key={e.key} style={{ marginBottom: 20 }}>
+              <div style={{ fontWeight: 600 }}>{e.label}</div>
               <div style={{ fontSize: 14, color: "var(--ink)", margin: "2px 0 8px" }}>{e.q}</div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={extra[e.key]}
-                onChange={(ev) => setExtra((p) => ({ ...p, [e.key]: Number(ev.target.value) }))}
-                style={{ width: "100%", accentColor: "var(--accent)" }}
-              />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-soft)" }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[1, 2, 3, 4, 5].map((n) => {
+                  const sel = extra[e.key] === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setExtra((p) => ({ ...p, [e.key]: n }))}
+                      style={{
+                        flex: 1,
+                        padding: "8px 0",
+                        borderRadius: 8,
+                        border: `1px solid ${sel ? "var(--accent)" : "var(--line)"}`,
+                        background: sel ? "var(--accent-wash)" : "transparent",
+                        color: "var(--ink)",
+                        cursor: "pointer",
+                        fontSize: 15,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-soft)", marginTop: 4 }}>
                 <span>{e.lo}</span>
                 <span>{e.hi}</span>
               </div>
