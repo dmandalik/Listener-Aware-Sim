@@ -25,6 +25,7 @@ import {
   drawUtterance,
   insertUtterance,
   openTrial,
+  reconcileUtteranceCounters,
   startSession,
   upsertParticipant,
 } from "@/lib/db/writer";
@@ -71,7 +72,8 @@ async function listen(
     firstName: opts.test ? "Test" : "Real", lastName: opts.test ? "User" : pid,
   });
   await startSession({ id: sid, prolificPid: pid, role: "listener", plan: {}, assignment: role });
-  const drawn = await drawUtterance(CELL.taskId, CELL.seed, CELL.scene, role);
+  // Mirror the real flow: a test/dev draw is untracked so it can't move the counters.
+  const drawn = await drawUtterance(CELL.taskId, CELL.seed, CELL.scene, role, !(opts.test ?? false));
   if (drawn) {
     await openTrial({
       sessionId: sid, trialIndex: 0, taskId: CELL.taskId, seed: CELL.seed, condition: {},
@@ -206,6 +208,31 @@ describe("drawUtterance serving rules", () => {
       expect(nov).toHaveLength(1);
       expect(exp).toHaveLength(1);
     }
+  });
+
+  it("a test listener never touches the pool counters, before OR after reconcile", async () => {
+    const u = await addMessage();
+    await listen("novice", { finish: true });            // a real novice — counts
+    await listen("novice", { finish: true, test: true }); // a test novice — must NOT count
+
+    const db = await getDb();
+    const read = async () => ((await db.select().from(utterances).where(eq(utterances.id, u))) as any[])[0];
+
+    // Live guard: the test draw was untracked, so the counters already exclude it —
+    // there is no "window" in which the test run is counted.
+    let row = await read();
+    expect(row.timesServed).toBe(1);
+    expect(row.servedNovice).toBe(1);
+
+    // The authoritative recompute also drops the test trial.
+    await reconcileUtteranceCounters();
+    row = await read();
+    expect(row.timesServed).toBe(1);
+    expect(row.servedNovice).toBe(1);
+    expect(row.completedNovice).toBe(1);
+    expect(row.listenerTrials).toBe(1);
+    expect(row.listenerSuccesses).toBe(1);
+    expect(row.successRate).toBe(1);
   });
 
   it("ignores test-user listeners: their play never consumes a message", async () => {

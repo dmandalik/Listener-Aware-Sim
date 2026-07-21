@@ -7,7 +7,7 @@
 // malformed event fails loudly at the boundary instead of corrupting the record.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import {
   events,
@@ -33,6 +33,36 @@ import { isTestParticipant } from "@/lib/test-participant";
 /** Wall-clock stamp for events. Isolated so tests can inject a clock if needed. */
 export function now(): number {
   return Date.now();
+}
+
+/** Session ids belonging to a test/dev participant (Test/User/blank name). Their play
+ *  must never touch any shared counter or aggregate. */
+async function testSessionIds(db: any): Promise<Set<string>> {
+  const [ss, parts] = (await Promise.all([
+    db.select({ id: sessions.id, pid: sessions.prolificPid }).from(sessions),
+    db
+      .select({ pid: participants.prolificPid, firstName: participants.firstName, lastName: participants.lastName })
+      .from(participants),
+  ])) as [
+    Array<{ id: string; pid: string }>,
+    Array<{ pid: string; firstName: string | null; lastName: string | null }>,
+  ];
+  const testPid = new Set(parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.pid));
+  return new Set(ss.filter((s) => testPid.has(s.pid)).map((s) => s.id));
+}
+
+/** True if this participant is a Test/User/blank dev run. Used to keep their play from
+ *  ever incrementing the shared pool counters. */
+export async function isTestPid(prolificPid: string): Promise<boolean> {
+  const db = await getDb();
+  const [p] = (await db
+    .select({ firstName: participants.firstName, lastName: participants.lastName })
+    .from(participants)
+    .where(eq(participants.prolificPid, prolificPid))) as Array<{
+    firstName: string | null;
+    lastName: string | null;
+  }>;
+  return p ? isTestParticipant(p.firstName, p.lastName) : false;
 }
 
 // ── Participants ─────────────────────────────────────────────────────────────
@@ -124,20 +154,6 @@ export async function startSession(a: StartSessionArgs): Promise<SessionRow> {
     })
     .returning();
   return row;
-}
-
-/** Current counts per assignment cell — the basis for balanced assignment. */
-export async function countAssignments(): Promise<Record<"speaker" | "novice" | "expert", number>> {
-  const db = await getDb();
-  const rows = (await db
-    .select({ assignment: sessions.assignment, n: count() })
-    .from(sessions)
-    .groupBy(sessions.assignment)) as Array<{ assignment: string | null; n: number }>;
-  const out = { speaker: 0, novice: 0, expert: 0 };
-  for (const r of rows) {
-    if (r.assignment && r.assignment in out) out[r.assignment as keyof typeof out] = Number(r.n);
-  }
-  return out;
 }
 
 /** Counts per assignment cell of runs with a given status, EXCLUDING test/dev runs
@@ -295,9 +311,14 @@ export async function reconcileUtteranceCounters(): Promise<{ utterances: number
   const db = await getDb();
   const us = (await db.select().from(utterances)) as UtteranceRow[];
   const ts = (await db.select().from(trials)) as TrialRow[];
+  // A test/dev run must never count toward any pool counter, so drop its trials before
+  // recomputing. Combined with the write-time guard this keeps test data out of the
+  // counters at every moment, not just after a reconcile.
+  const testSessions = await testSessionIds(db);
   const byUtt = new Map<number, TrialRow[]>();
   for (const t of ts) {
     if (t.utteranceId == null) continue;
+    if (testSessions.has(t.sessionId)) continue;
     (byUtt.get(t.utteranceId) ?? byUtt.set(t.utteranceId, []).get(t.utteranceId)!).push(t);
   }
   let changed = 0;
@@ -624,6 +645,9 @@ export async function drawUtterance(
   seed: number,
   scene: string,
   condition: "novice" | "expert",
+  // A test/dev listener still gets a message to play, but their draw must NOT move the
+  // shared serve counter — pass false so nothing about them lands in the pool stats.
+  track = true,
 ): Promise<UtteranceRow | null> {
   const db = await getDb();
   const all = (await db
@@ -664,16 +688,19 @@ export async function drawUtterance(
   const pick = pool[Math.floor(Math.random() * pool.length)]!;
 
   // Keep the descriptive serve counter moving (the admin pool view reads it); the
-  // authoritative seen/reserved state is derived from trials above, not from this.
-  await db
-    .update(utterances)
-    .set({
-      timesServed: pick.timesServed + 1,
-      ...(condition === "novice"
-        ? { servedNovice: pick.servedNovice + 1 }
-        : { servedExpert: pick.servedExpert + 1 }),
-    })
-    .where(eq(utterances.id, pick.id));
+  // authoritative seen/reserved state is derived from trials above, not from this. A
+  // test/dev draw is never tracked, so it can't nudge any pool stat.
+  if (track) {
+    await db
+      .update(utterances)
+      .set({
+        timesServed: pick.timesServed + 1,
+        ...(condition === "novice"
+          ? { servedNovice: pick.servedNovice + 1 }
+          : { servedExpert: pick.servedExpert + 1 }),
+      })
+      .where(eq(utterances.id, pick.id));
+  }
   return pick;
 }
 

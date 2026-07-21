@@ -34,6 +34,7 @@ import {
   countUtterances,
   drawUtterance,
   endSession,
+  isTestPid,
   upsertAuthorUtterance,
   markParticipantCompleted,
   openTrial,
@@ -357,7 +358,9 @@ async function openTrialAt(
           : cond.keys.partsKey
             ? "expert"
             : "novice";
-      const drawn = await drawUtterance(cond.taskId, cond.seed, cond.scene ?? "", drawCond);
+      // A test/dev listener still receives a message, but their draw is not tracked,
+      // so it can never move the shared pool counters.
+      const drawn = await drawUtterance(cond.taskId, cond.seed, cond.scene ?? "", drawCond, !(await isTestPid(pid)));
       if (!drawn) {
         // Fail loud (§15): a replay study with an empty pool is a setup error.
         throw new Error(
@@ -670,7 +673,7 @@ export async function applyListenerAction(args: {
   viewAs?: ViewAs;
 }): Promise<TrialPayload> {
   await ready();
-  const { plan, assignment } = await loadPlan(args.sessionId);
+  const { plan, pid, assignment } = await loadPlan(args.sessionId);
   const rt = plan.trials[args.trialIndex];
   if (!rt) throw new Error(`No trial ${args.trialIndex} in session ${args.sessionId}`);
   const cond = rt.condition;
@@ -731,7 +734,8 @@ export async function applyListenerAction(args: {
     });
     // Fold this outcome into the replayed utterance's aggregates (§12 bonus, and
     // the per-condition completed count that balances the pool).
-    if (row.utteranceId != null) {
+    // A test/dev listener's outcome never folds into the pool aggregates.
+    if (row.utteranceId != null && !(await isTestPid(pid))) {
       await recordUtteranceOutcome(row.utteranceId, o.correct, assignment === "speaker" ? null : assignment);
     }
   }
@@ -744,7 +748,7 @@ export async function timeoutListenerTrial(args: {
   trialIndex: number;
 }): Promise<TrialPayload> {
   await ready();
-  const { plan, assignment } = await loadPlan(args.sessionId);
+  const { plan, pid, assignment } = await loadPlan(args.sessionId);
   const rt = plan.trials[args.trialIndex];
   if (!rt) throw new Error(`No trial ${args.trialIndex}`);
   const cond = rt.condition;
@@ -777,7 +781,8 @@ export async function timeoutListenerTrial(args: {
       reason: "timeout",
       durationMs,
     });
-    if (row.utteranceId != null) {
+    // A test/dev listener's timeout never folds into the pool aggregates.
+    if (row.utteranceId != null && !(await isTestPid(pid))) {
       await recordUtteranceOutcome(row.utteranceId, false, assignment === "speaker" ? null : assignment);
     }
     // Reflect terminality in the stored state too.
