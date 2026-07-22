@@ -172,9 +172,9 @@ export default function AdminPage() {
 
       <div className="tabs">
         <button className={tab === "dashboard" ? "on" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button className={tab === "pddl" ? "on" : ""} onClick={loadPddl}>PDDL models</button>
         <button className={tab === "analysis" ? "on" : ""} onClick={() => { setTab("analysis"); refresh(); }}>Analysis</button>
         <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")}>Sessions &amp; replay</button>
-        <button className={tab === "pddl" ? "on" : ""} onClick={loadPddl}>PDDL models</button>
       </div>
 
       {tab === "dashboard" && (
