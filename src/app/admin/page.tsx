@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Summary = {
   sessions: { total: number; completed: number; inProgress: number; byAssignment: Record<string, number> };
@@ -114,11 +114,17 @@ export default function AdminPage() {
     setTab("pddl"); setPddlSel(null);
     try { setPddl((await api("/api/admin/pddl")).models); } catch { setPddl([]); }
   }, [api]);
+  const pddlDetailRef = useRef<HTMLDivElement | null>(null);
   const viewPddl = async (k: string) => {
     setPddlSel({ key: k, loading: true });
     try { setPddlSel({ key: k, ...(await api(`/api/admin/pddl?one=${encodeURIComponent(k)}`)) }); }
     catch (e) { setPddlSel({ key: k, error: (e as Error).message }); }
   };
+  // Bring the selected model into view — otherwise a click far down a long list opens
+  // the panel off-screen and looks like nothing happened.
+  useEffect(() => {
+    if (pddlSel) pddlDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [pddlSel]);
 
   if (!authed) {
     return (
@@ -222,34 +228,10 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {!pddl ? (
-            <p style={{ color: "var(--ink-soft)" }}>Building models…</p>
-          ) : pddl.length === 0 ? (
-            <p style={{ color: "var(--ink-soft)" }}>No completed trials yet.</p>
-          ) : (
-            <div className="card" style={{ padding: 16, overflowX: "auto" }}>
-              <table className="admin-table">
-                <thead><tr><th>Task</th><th>Participant</th><th>Role</th><th>Success</th><th>Moves</th><th>Optimal</th><th>Skill</th><th></th></tr></thead>
-                <tbody>
-                  {pddl.map((m) => (
-                    <tr key={m.key} style={{ background: pddlSel?.key === m.key ? "var(--accent-wash)" : undefined }}>
-                      <td>{m.task}</td>
-                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{m.participant}</td>
-                      <td>{m.role}</td>
-                      <td>{m.success == null ? "—" : m.success ? "✓" : "✗"}</td>
-                      <td>{m.moves ?? "—"}</td>
-                      <td>{m.optimalMoves ?? "—"}</td>
-                      <td>{m.skill == null ? "—" : m.skill.toFixed(2)}</td>
-                      <td><button className="pill-btn" onClick={() => viewPddl(m.key)}>View</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
+          {/* Selected model — rendered ABOVE the list and scrolled into view on click,
+              so it's always visible even when the list is long. */}
           {pddlSel && (
-            <div className="card" style={{ padding: 16 }}>
+            <div ref={pddlDetailRef} className="card" style={{ padding: 16 }}>
               {pddlSel.loading ? (
                 <p style={{ color: "var(--ink-soft)" }}>Loading…</p>
               ) : pddlSel.error ? (
@@ -274,6 +256,36 @@ export default function AdminPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {!pddl ? (
+            <p style={{ color: "var(--ink-soft)" }}>Building models…</p>
+          ) : pddl.length === 0 ? (
+            <p style={{ color: "var(--ink-soft)" }}>No completed trials yet.</p>
+          ) : (
+            <div className="card" style={{ padding: 16, overflowX: "auto" }}>
+              <table className="admin-table">
+                <thead><tr><th></th><th>Task</th><th>Participant</th><th>Role</th><th>Success</th><th>Moves</th><th>Optimal</th><th>Skill</th></tr></thead>
+                <tbody>
+                  {pddl.map((m) => (
+                    <tr
+                      key={m.key}
+                      onClick={() => viewPddl(m.key)}
+                      style={{ cursor: "pointer", background: pddlSel?.key === m.key ? "var(--accent-wash)" : undefined }}
+                    >
+                      <td><button className="pill-btn" onClick={(e) => { e.stopPropagation(); viewPddl(m.key); }}>View</button></td>
+                      <td>{m.task}</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{m.participant}</td>
+                      <td>{m.role}</td>
+                      <td>{m.success == null ? "—" : m.success ? "✓" : "✗"}</td>
+                      <td>{m.moves ?? "—"}</td>
+                      <td>{m.optimalMoves ?? "—"}</td>
+                      <td>{m.skill == null ? "—" : m.skill.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
