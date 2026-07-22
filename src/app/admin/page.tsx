@@ -27,16 +27,25 @@ const TABLES = [
 function pct(x: number | null) { return x == null ? "—" : `${Math.round(x * 100)}%`; }
 function ms(x: number | null) { return x == null ? "—" : `${(x / 1000).toFixed(1)}s`; }
 
+const preStyle: React.CSSProperties = {
+  margin: 0, padding: "10px 12px", background: "var(--paper, #faf7ef)", border: "1px solid var(--line)",
+  borderRadius: 8, fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 1.5,
+  overflowX: "auto", maxHeight: 340, whiteSpace: "pre",
+};
+
 export default function AdminPage() {
   const [key, setKey] = useState("");
   const [authed, setAuthed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<"dashboard" | "analysis" | "sessions">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "analysis" | "sessions" | "pddl">("dashboard");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
   const [step, setStep] = useState(0);
+  // PDDL models (built live from the DB).
+  const [pddl, setPddl] = useState<any[] | null>(null);
+  const [pddlSel, setPddlSel] = useState<any | null>(null);
 
   const api = useCallback(
     async (path: string, k = key) => {
@@ -101,6 +110,16 @@ export default function AdminPage() {
     setStep(0);
   };
 
+  const loadPddl = useCallback(async () => {
+    setTab("pddl"); setPddlSel(null);
+    try { setPddl((await api("/api/admin/pddl")).models); } catch { setPddl([]); }
+  }, [api]);
+  const viewPddl = async (k: string) => {
+    setPddlSel({ key: k, loading: true });
+    try { setPddlSel({ key: k, ...(await api(`/api/admin/pddl?one=${encodeURIComponent(k)}`)) }); }
+    catch (e) { setPddlSel({ key: k, error: (e as Error).message }); }
+  };
+
   if (!authed) {
     return (
       <main className="center-screen">
@@ -137,6 +156,7 @@ export default function AdminPage() {
         <button className={tab === "dashboard" ? "on" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
         <button className={tab === "analysis" ? "on" : ""} onClick={() => { setTab("analysis"); refresh(); }}>Analysis</button>
         <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")}>Sessions &amp; replay</button>
+        <button className={tab === "pddl" ? "on" : ""} onClick={loadPddl}>PDDL models</button>
       </div>
 
       {tab === "dashboard" && (
@@ -185,6 +205,77 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === "pddl" && (
+        <div className="stack" style={{ gap: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 10 }}>
+            <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: 0, maxWidth: 640 }}>
+              One PDDL model per completed, non-test trial, built live from the database. Each is a task
+              <b> domain</b> + a <b>problem</b> (the scenario) + a <b>profile</b> (role, novice/expert, message,
+              moves vs optimal, skill). Click a row to view it.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="pill-btn" onClick={loadPddl}>Refresh</button>
+              <button className="pill-btn" onClick={() => download("/api/admin/pddl?download=1", "pddl_models.jsonl")}>Download all (JSONL)</button>
+            </div>
+          </div>
+
+          {!pddl ? (
+            <p style={{ color: "var(--ink-soft)" }}>Building models…</p>
+          ) : pddl.length === 0 ? (
+            <p style={{ color: "var(--ink-soft)" }}>No completed trials yet.</p>
+          ) : (
+            <div className="card" style={{ padding: 16, overflowX: "auto" }}>
+              <table className="admin-table">
+                <thead><tr><th>Task</th><th>Participant</th><th>Role</th><th>Success</th><th>Moves</th><th>Optimal</th><th>Skill</th><th></th></tr></thead>
+                <tbody>
+                  {pddl.map((m) => (
+                    <tr key={m.key} style={{ background: pddlSel?.key === m.key ? "var(--accent-wash)" : undefined }}>
+                      <td>{m.task}</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{m.participant}</td>
+                      <td>{m.role}</td>
+                      <td>{m.success == null ? "—" : m.success ? "✓" : "✗"}</td>
+                      <td>{m.moves ?? "—"}</td>
+                      <td>{m.optimalMoves ?? "—"}</td>
+                      <td>{m.skill == null ? "—" : m.skill.toFixed(2)}</td>
+                      <td><button className="pill-btn" onClick={() => viewPddl(m.key)}>View</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {pddlSel && (
+            <div className="card" style={{ padding: 16 }}>
+              {pddlSel.loading ? (
+                <p style={{ color: "var(--ink-soft)" }}>Loading…</p>
+              ) : pddlSel.error ? (
+                <p style={{ color: "var(--alert)" }}>{pddlSel.error}</p>
+              ) : (
+                <div className="stack" style={{ gap: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <h4 style={{ margin: 0, fontFamily: "var(--font-mono)", fontSize: 13 }}>{pddlSel.key}</h4>
+                    <button className="pill-btn" onClick={() => setPddlSel(null)}>Close</button>
+                  </div>
+                  <div>
+                    <div className="eyebrow" style={{ marginBottom: 6 }}>profile.json</div>
+                    <pre style={preStyle}>{JSON.stringify(pddlSel.profile, null, 2)}</pre>
+                  </div>
+                  <div>
+                    <div className="eyebrow" style={{ marginBottom: 6 }}>problem.pddl</div>
+                    <pre style={preStyle}>{pddlSel.problem}</pre>
+                  </div>
+                  <div>
+                    <div className="eyebrow" style={{ marginBottom: 6 }}>domain: {pddlSel.profile?.task}.pddl</div>
+                    <pre style={preStyle}>{pddlSel.domain}</pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
