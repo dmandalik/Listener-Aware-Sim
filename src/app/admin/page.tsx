@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Summary = {
   sessions: { total: number; completed: number; inProgress: number; byAssignment: Record<string, number> };
@@ -46,6 +46,18 @@ export default function AdminPage() {
   // PDDL models (built live from the DB).
   const [pddl, setPddl] = useState<any[] | null>(null);
   const [pddlSel, setPddlSel] = useState<any | null>(null);
+  const [openUser, setOpenUser] = useState<string | null>(null);
+  // Group the flat model list by participant, newest finisher first, trials in play order.
+  const pddlGroups = useMemo(() => {
+    if (!pddl) return [] as any[];
+    const byUser = new Map<string, any>();
+    for (const row of pddl) {
+      if (!byUser.has(row.participant)) byUser.set(row.participant, { participant: row.participant, role: row.role, finishedAt: row.finishedAt, trials: [] });
+      byUser.get(row.participant).trials.push(row);
+    }
+    for (const g of byUser.values()) g.trials.sort((a: any, b: any) => a.trialIndex - b.trialIndex);
+    return [...byUser.values()]; // pddl is already sorted newest-first, so users come out newest-first
+  }, [pddl]);
 
   const api = useCallback(
     async (path: string, k = key) => {
@@ -218,9 +230,10 @@ export default function AdminPage() {
         <div className="stack" style={{ gap: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 10 }}>
             <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: 0, maxWidth: 640 }}>
-              One PDDL model per completed, non-test trial, built live from the database. Each is a task
-              <b> domain</b> + a <b>problem</b> (the scenario) + a <b>profile</b> (role, novice/expert, message,
-              moves vs optimal, skill). Click a row to view it.
+              PDDL models built live from the database, grouped by participant with the most recent finisher
+              on top. Click a person to see their trials, then a trial to view its PDDL (a task <b>domain</b> +
+              a <b>problem</b> scenario + a <b>profile</b> with role, novice/expert, message, moves vs optimal,
+              and skill).
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="pill-btn" onClick={loadPddl}>Refresh</button>
@@ -261,32 +274,61 @@ export default function AdminPage() {
 
           {!pddl ? (
             <p style={{ color: "var(--ink-soft)" }}>Building models…</p>
-          ) : pddl.length === 0 ? (
+          ) : pddlGroups.length === 0 ? (
             <p style={{ color: "var(--ink-soft)" }}>No completed trials yet.</p>
           ) : (
-            <div className="card" style={{ padding: 16, overflowX: "auto" }}>
-              <table className="admin-table">
-                <thead><tr><th></th><th>Finished</th><th>Task</th><th>Participant</th><th>Role</th><th>Success</th><th>Moves</th><th>Optimal</th><th>Skill</th></tr></thead>
-                <tbody>
-                  {pddl.map((m) => (
-                    <tr
-                      key={m.key}
-                      onClick={() => viewPddl(m.key)}
-                      style={{ cursor: "pointer", background: pddlSel?.key === m.key ? "var(--accent-wash)" : undefined }}
+            <div className="stack" style={{ gap: 8 }}>
+              {pddlGroups.map((g) => {
+                const open = openUser === g.participant;
+                return (
+                  <div key={g.participant} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                    <button
+                      onClick={() => setOpenUser(open ? null : g.participant)}
+                      style={{
+                        width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                        gap: 12, padding: "12px 16px", background: open ? "var(--accent-wash)" : "transparent",
+                        border: "none", cursor: "pointer", textAlign: "left",
+                      }}
                     >
-                      <td><button className="pill-btn" onClick={(e) => { e.stopPropagation(); viewPddl(m.key); }}>View</button></td>
-                      <td style={{ whiteSpace: "nowrap", fontSize: 12 }}>{m.finishedAt ? new Date(m.finishedAt).toLocaleString() : "—"}</td>
-                      <td>{m.task}</td>
-                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{m.participant}</td>
-                      <td>{m.role}</td>
-                      <td>{m.success == null ? "—" : m.success ? "✓" : "✗"}</td>
-                      <td>{m.moves ?? "—"}</td>
-                      <td>{m.optimalMoves ?? "—"}</td>
-                      <td>{m.skill == null ? "—" : m.skill.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ color: "var(--ink-soft)" }}>{open ? "▾" : "▸"}</span>
+                        <b style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>{g.participant}</b>
+                        <span style={{ fontSize: 12, color: "var(--accent-ink)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>{g.role}</span>
+                        <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{g.trials.length} trial{g.trials.length === 1 ? "" : "s"}</span>
+                      </span>
+                      <span style={{ fontSize: 12, color: "var(--ink-soft)", whiteSpace: "nowrap" }}>
+                        {g.finishedAt ? new Date(g.finishedAt).toLocaleString() : ""}
+                      </span>
+                    </button>
+
+                    {open && (
+                      <div style={{ padding: "4px 16px 14px", overflowX: "auto" }}>
+                        <table className="admin-table">
+                          <thead><tr><th></th><th>Trial</th><th>Task</th><th>Scene</th><th>Success</th><th>Moves</th><th>Optimal</th><th>Skill</th></tr></thead>
+                          <tbody>
+                            {g.trials.map((m: any) => (
+                              <tr
+                                key={m.key}
+                                onClick={() => viewPddl(m.key)}
+                                style={{ cursor: "pointer", background: pddlSel?.key === m.key ? "var(--accent-wash)" : undefined }}
+                              >
+                                <td><button className="pill-btn" onClick={(e) => { e.stopPropagation(); viewPddl(m.key); }}>View PDDL</button></td>
+                                <td>{m.trialIndex + 1}</td>
+                                <td>{m.task}</td>
+                                <td style={{ fontSize: 12, color: "var(--ink-soft)" }}>{m.scene}</td>
+                                <td>{m.success == null ? "—" : m.success ? "✓" : "✗"}</td>
+                                <td>{m.moves ?? "—"}</td>
+                                <td>{m.optimalMoves ?? "—"}</td>
+                                <td>{m.skill == null ? "—" : m.skill.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
