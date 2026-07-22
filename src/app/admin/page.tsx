@@ -266,7 +266,7 @@ export default function AdminPage() {
           ) : (
             <div className="card" style={{ padding: 16, overflowX: "auto" }}>
               <table className="admin-table">
-                <thead><tr><th></th><th>Task</th><th>Participant</th><th>Role</th><th>Success</th><th>Moves</th><th>Optimal</th><th>Skill</th></tr></thead>
+                <thead><tr><th></th><th>Finished</th><th>Task</th><th>Participant</th><th>Role</th><th>Success</th><th>Moves</th><th>Optimal</th><th>Skill</th></tr></thead>
                 <tbody>
                   {pddl.map((m) => (
                     <tr
@@ -275,6 +275,7 @@ export default function AdminPage() {
                       style={{ cursor: "pointer", background: pddlSel?.key === m.key ? "var(--accent-wash)" : undefined }}
                     >
                       <td><button className="pill-btn" onClick={(e) => { e.stopPropagation(); viewPddl(m.key); }}>View</button></td>
+                      <td style={{ whiteSpace: "nowrap", fontSize: 12 }}>{m.finishedAt ? new Date(m.finishedAt).toLocaleString() : "—"}</td>
                       <td>{m.task}</td>
                       <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{m.participant}</td>
                       <td>{m.role}</td>

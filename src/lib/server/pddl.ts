@@ -29,7 +29,7 @@ function maps(): Record<string, any> {
 const keyOf = (task: string, pid: string, layout: string | null, scene: string) =>
   `${task}:${pid}:${layout ?? scene}`;
 
-interface Built { key: string; participant: string; role: string; model: Model; }
+interface Built { key: string; participant: string; role: string; model: Model; finishedAt: string | null; trialIndex: number; }
 
 /** Build every model (completed, non-test trials only) from the current DB state. */
 async function buildAll(): Promise<Built[]> {
@@ -61,7 +61,13 @@ async function buildAll(): Promise<Built[]> {
     };
     const sv = survey.get(`${t.sessionId}:${t.trialIndex}`);
     const model = buildModel({ pid: s.prolificPid, role, map, trial, survey: sv });
-    if (model) out.push({ key: keyOf(t.taskId, s.prolificPid, t.layout, t.scene), participant: s.prolificPid, role, model });
+    // When this entry finished: the trial's end, else the session's end. Used to show
+    // the newest completed entries first.
+    const finishedAt = (t.endedAt ?? s.endedAt ?? s.startedAt) ?? null;
+    if (model) out.push({
+      key: keyOf(t.taskId, s.prolificPid, t.layout, t.scene), participant: s.prolificPid, role, model,
+      finishedAt: finishedAt ? new Date(finishedAt).toISOString() : null, trialIndex: t.trialIndex,
+    });
   }
   return out;
 }
@@ -74,7 +80,13 @@ export async function pddlIndex() {
     task: b.model.profile.task, scene: b.model.profile.scene, layout: b.model.profile.layout,
     success: b.model.profile.outcome.success, moves: b.model.profile.outcome.moves,
     optimalMoves: b.model.profile.outcome.optimalMoves, skill: b.model.profile.skill.level,
-  })).sort((a, b) => a.task.localeCompare(b.task) || a.participant.localeCompare(b.participant));
+    finishedAt: b.finishedAt, trialIndex: b.trialIndex,
+  })).sort((a, b) => {
+    // Newest finished first; within one session keep the trials in order.
+    const ta = a.finishedAt ? new Date(a.finishedAt).getTime() : 0;
+    const tb = b.finishedAt ? new Date(b.finishedAt).getTime() : 0;
+    return tb - ta || a.trialIndex - b.trialIndex;
+  });
 }
 
 /** One model's PDDL problem + profile + its domain, for inline viewing. */
