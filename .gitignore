@@ -23,3 +23,7 @@ next-env.d.ts
 coverage/
 .vercel
 .env*
+
+# PDDL generator: data snapshots + generated models hold participant data
+pddl/data/
+pddl/out/
