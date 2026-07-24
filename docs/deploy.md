@@ -1,4 +1,4 @@
-# Deploying Fetch Games
+# Deploying Listener-Aware Data Collection Game
 
 The app runs on Vercel with a Neon database. Local runs use a small built in database
 called PGlite. Production uses Neon. You flip one setting to switch, and nothing else in
