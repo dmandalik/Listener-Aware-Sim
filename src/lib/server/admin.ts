@@ -151,6 +151,7 @@ export interface Analysis {
   byTask: Array<{ taskId: string; novice: RoleStat; expert: RoleStat; successGap: number | null }>;
   withinUtterance: { paired: number; expertBetter: number; noviceBetter: number; same: number; expertAdvantage: number | null };
   workload: { novice: number | null; expert: number | null; byTask: Array<{ taskId: string; novice: number | null; expert: number | null }> };
+  workloadDimensions: Array<{ key: string; label: string; novice: number | null; expert: number | null }>;
   generatedAt: string | null;
 }
 
@@ -234,6 +235,23 @@ export async function getAnalysis(): Promise<Analysis> {
   };
   const wTasks = [...new Set(tlxUsable.filter((s) => s.taskId).map((s) => s.taskId))].sort();
 
+  // Each NASA-TLX item on its own, averaged by role — so a single composite doesn't hide
+  // that, say, physical demand is near-zero on these online tasks while mental demand differs.
+  const TLX_ITEMS = [
+    { key: "tlxMental", label: "Mental demand" },
+    { key: "tlxPhysical", label: "Physical demand" },
+    { key: "tlxTemporal", label: "Temporal demand" },
+    { key: "tlxPerformance", label: "Performance (higher = worse)" },
+    { key: "tlxEffort", label: "Effort" },
+    { key: "tlxFrustration", label: "Frustration" },
+  ];
+  const dimAvg = (rows: any[], key: string) => {
+    const v = rows.map((r) => r[key]).filter((x) => x != null) as number[];
+    return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null;
+  };
+  const novRows = tlxUsable.filter((s) => s.assignment === "novice");
+  const expRows = tlxUsable.filter((s) => s.assignment === "expert");
+
   return {
     participants: partN,
     overall: { novice: overallNov, expert: overallExp, successGap: gap(overallExp, overallNov) },
@@ -248,6 +266,9 @@ export async function getAnalysis(): Promise<Analysis> {
         expert: meanRaw(tlxUsable.filter((s) => s.assignment === "expert" && s.taskId === taskId)),
       })),
     },
+    workloadDimensions: TLX_ITEMS.map((it) => ({
+      key: it.key, label: it.label, novice: dimAvg(novRows, it.key), expert: dimAvg(expRows, it.key),
+    })),
     generatedAt: null, // stamped by the route (Date.now() unavailable here in some contexts)
   };
 }

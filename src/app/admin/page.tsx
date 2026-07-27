@@ -15,6 +15,7 @@ type Analysis = {
   byTask: Array<{ taskId: string; novice: RoleStat; expert: RoleStat; successGap: number | null }>;
   withinUtterance: { paired: number; expertBetter: number; noviceBetter: number; same: number; expertAdvantage: number | null };
   workload: { novice: number | null; expert: number | null; byTask: Array<{ taskId: string; novice: number | null; expert: number | null }> };
+  workloadDimensions: Array<{ key: string; label: string; novice: number | null; expert: number | null }>;
   generatedAt: string | null;
 };
 type SessionRow = { id: string; pid: string; role: string; assignment: string | null; status: string; startedAt: string; endedAt: string | null; trials: number };
@@ -415,6 +416,29 @@ export default function AdminPage() {
                     ))}
                     {analysis.workload.novice == null && analysis.workload.expert == null && (
                       <tr><td colSpan={3} style={{ color: "var(--ink-soft)" }}>No TLX responses yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="card" style={{ padding: 16, overflowX: "auto" }}>
+                <h4 style={{ margin: "0 0 4px", color: "var(--ink-soft)" }}>Each NASA-TLX item on its own (0–100; higher = harder)</h4>
+                <p style={{ color: "var(--ink-soft)", fontSize: 12, margin: "0 0 10px" }}>
+                  The six items averaged separately, novice vs expert. Useful because items like physical demand sit near zero on these online tasks, so the single average above can hide the items that actually differ.
+                </p>
+                <table className="admin-table">
+                  <thead><tr><th>Item</th><th>Novice</th><th>Expert</th><th>Difference</th></tr></thead>
+                  <tbody>
+                    {analysis.workloadDimensions.map((d) => (
+                      <tr key={d.key}>
+                        <td>{d.label}</td>
+                        <td>{d.novice ?? "—"}</td>
+                        <td>{d.expert ?? "—"}</td>
+                        <td>{d.novice == null || d.expert == null ? "—" : `${d.expert - d.novice > 0 ? "+" : ""}${Math.round((d.expert - d.novice) * 10) / 10}`}</td>
+                      </tr>
+                    ))}
+                    {analysis.workloadDimensions.every((d) => d.novice == null && d.expert == null) && (
+                      <tr><td colSpan={4} style={{ color: "var(--ink-soft)" }}>No TLX responses yet.</td></tr>
                     )}
                   </tbody>
                 </table>
