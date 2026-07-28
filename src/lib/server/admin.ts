@@ -614,6 +614,26 @@ async function getTlx(): Promise<any[]> {
     .sort(orderBy("role", "name", "prolificPid", "trialIndex"));
 }
 
+/** Just name + email for everyone who filled out the intake form, one row per unique
+ *  email. Test and dev runs are left out. For contacting participants. */
+async function getContacts(): Promise<any[]> {
+  const db = await getDb();
+  const parts = (await db.select().from(participants)) as any[];
+  const seen = new Set<string>();
+  const out: Array<{ name: string; email: string }> = [];
+  for (const p of parts) {
+    if (isTestParticipant(p.firstName, p.lastName)) continue;
+    const email = (p.email ?? "").trim();
+    const name = (p.name ?? [p.firstName, p.lastName].filter(Boolean).join(" ")).trim();
+    if (!email || !name) continue; // only people who actually filled the form
+    const k = email.toLowerCase();
+    if (seen.has(k)) continue; // one row per person
+    seen.add(k);
+    out.push({ name, email });
+  }
+  return out.sort(orderBy("name", "email"));
+}
+
 const VIEWS: Record<string, () => Promise<any[]>> = {
   dataset: getDataset,
   roster: getRoster,
@@ -621,6 +641,7 @@ const VIEWS: Record<string, () => Promise<any[]>> = {
   authored: getAuthored,
   survey: getSurvey,
   tlx: getTlx,
+  contacts: getContacts,
 };
 
 export type ExportName = TableName | keyof typeof VIEWS;
@@ -631,6 +652,7 @@ export const EXPORT_NAMES: ExportName[] = [
   "authored",
   "survey",
   "tlx",
+  "contacts",
   "events",
   "trials",
   "sessions",

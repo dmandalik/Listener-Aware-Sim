@@ -21,7 +21,7 @@ type Analysis = {
 type SessionRow = { id: string; pid: string; role: string; assignment: string | null; status: string; startedAt: string; endedAt: string | null; trials: number };
 
 const TABLES = [
-  "dataset", "results", "authored", "tlx", "survey", "roster",
+  "dataset", "results", "authored", "tlx", "survey", "roster", "contacts",
   "events", "trials", "sessions", "participants", "utterances", "trialSurveys",
 ] as const;
 
