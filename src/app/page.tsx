@@ -197,8 +197,13 @@ export default function Entry() {
 
   if (step === "name") {
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-    // Robot familiarity is REQUIRED (unlike the optional demographics below).
-    const canStart = !!firstName.trim() && !!lastName.trim() && emailOk && robotFamiliarity != null;
+    // Everything is required. "Prefer not to say" is a valid answer, but a choice must
+    // be made. If a self-describe / Other option is picked, its text must be filled too.
+    const genderOk = !!gender && (gender !== "Prefer to self-describe" || !!genderOther.trim());
+    const raceOk = race.length > 0 && (!race.includes("Other") || !!raceOther.trim());
+    const canStart =
+      !!firstName.trim() && !!lastName.trim() && emailOk && robotFamiliarity != null &&
+      !!age && genderOk && raceOk;
     // Plain helper (NOT a component) so inputs keep focus while typing.
     const choice = (
       opts: string[],
@@ -252,7 +257,8 @@ export default function Entry() {
             <div className="eyebrow">Almost there</div>
             <h2 style={{ margin: "4px 0 2px", fontSize: 22 }}>About you</h2>
             <p style={{ color: "var(--ink-soft)", fontSize: 13, margin: 0 }}>
-              Your name and email label your responses; the demographic questions are optional.
+              Your name and email label your responses. Every question below is required, but
+              &ldquo;Prefer not to say&rdquo; is always an option.
             </p>
             <p style={{ color: "var(--ink)", fontSize: 13, fontWeight: 700, margin: "8px 0 0" }}>
               All information you provide is fully anonymized before analysis.
@@ -315,7 +321,7 @@ export default function Entry() {
           <div style={{ padding: "12px 28px 20px", borderTop: "1px solid var(--line)" }}>
             <button className="btn" disabled={!canStart} onClick={goToPlay} style={{ width: "100%" }}>Start →</button>
             {!canStart && (
-              <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Please enter your first name, last name, a valid email, and how familiar you are with robots.</p>
+              <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 8, textAlign: "center" }}>Please answer every question. &ldquo;Prefer not to say&rdquo; counts as an answer.</p>
             )}
           </div>
         </div>

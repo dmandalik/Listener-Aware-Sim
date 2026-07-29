@@ -551,9 +551,11 @@ async function getSurvey(): Promise<any[]> {
       prolificPid: s.prolificPid,
       name: s.prolificPid ? nameByPid.get(s.prolificPid) ?? null : null,
       role: s.role,
-      ageRange: s.ageRange,
-      gender: s.gender === "Prefer to self-describe" && s.genderOther ? s.genderOther : s.gender,
-      race: Array.isArray(s.race) ? s.race.join("; ") : s.race,
+      // Demographics are required going forward. Anyone from before that (who could
+      // leave them blank) is filled in as "Prefer not to say" so nothing reads as empty.
+      ageRange: s.ageRange || "Prefer not to say",
+      gender: (s.gender === "Prefer to self-describe" && s.genderOther ? s.genderOther : s.gender) || "Prefer not to say",
+      race: (Array.isArray(s.race) ? s.race.join("; ") : s.race) || "Prefer not to say",
       raceOther: s.raceOther,
       // Required going forward, so a blank one is a participant from before this
       // question existed — labelled so it's never mistaken for a skipped answer.
