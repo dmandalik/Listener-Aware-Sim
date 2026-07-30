@@ -560,6 +560,8 @@ async function getSurvey(): Promise<any[]> {
       // Required going forward, so a blank one is a participant from before this
       // question existed — labelled so it's never mistaken for a skipped answer.
       robotFamiliarity: s.robotFamiliarity ?? "not asked",
+      // Required going forward; blank means they played before this question existed.
+      fieldOfStudy: (s.fieldOfStudy === "Other" && s.fieldOfStudyOther ? s.fieldOfStudyOther : s.fieldOfStudy) || "not asked",
       feedback: s.feedback,
       createdAt: s.createdAt,
     }))

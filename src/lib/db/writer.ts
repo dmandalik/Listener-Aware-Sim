@@ -790,6 +790,8 @@ export interface SurveyArgs {
   race?: string[] | null;
   raceOther?: string | null;
   robotFamiliarity?: number | null;
+  fieldOfStudy?: string | null;
+  fieldOfStudyOther?: string | null;
   tlxMental?: number | null;
   tlxPhysical?: number | null;
   tlxTemporal?: number | null;
@@ -814,6 +816,8 @@ export async function upsertSurvey(a: SurveyArgs): Promise<void> {
     race: a.race,
     raceOther: a.raceOther,
     robotFamiliarity: a.robotFamiliarity,
+    fieldOfStudy: a.fieldOfStudy,
+    fieldOfStudyOther: a.fieldOfStudyOther,
     tlxMental: a.tlxMental,
     tlxPhysical: a.tlxPhysical,
     tlxTemporal: a.tlxTemporal,

@@ -7,13 +7,16 @@
 import { useEffect, useState } from "react";
 import { RobotAvatar } from "@/components/RobotAvatar";
 
+// Question wording follows the standard NASA-TLX definitions (Hart & Staveland), which
+// name concrete activities instead of restating the label, grounded in what a player
+// actually does in these online tasks.
 const TLX = [
-  { key: "tlxMental", label: "Mental demand", q: "How mentally demanding was this round?", lo: "Very low", hi: "Very high" },
-  { key: "tlxPhysical", label: "Physical demand", q: "How physically demanding was this round?", lo: "Very low", hi: "Very high" },
-  { key: "tlxTemporal", label: "Temporal demand", q: "How hurried or rushed did the pace feel?", lo: "Very low", hi: "Very high" },
-  { key: "tlxPerformance", label: "Performance", q: "How successful were you at doing what you were asked to do?", lo: "Failure", hi: "Perfect" },
-  { key: "tlxEffort", label: "Effort", q: "How hard did you have to work to accomplish your level of performance?", lo: "Very low", hi: "Very high" },
-  { key: "tlxFrustration", label: "Frustration", q: "How insecure, discouraged, irritated, or stressed were you?", lo: "Very low", hi: "Very high" },
+  { key: "tlxMental", label: "Mental demand", q: "How much thinking, deciding, remembering, and searching did this round take?", lo: "Very low", hi: "Very high" },
+  { key: "tlxPhysical", label: "Physical demand", q: "How much physical effort did this round take, like moving the mouse, clicking, and pressing keys?", lo: "Very low", hi: "Very high" },
+  { key: "tlxTemporal", label: "Temporal demand", q: "How much time pressure did you feel from the pace of this round?", lo: "Very low", hi: "Very high" },
+  { key: "tlxPerformance", label: "Performance", q: "How successful were you at accomplishing the goal of this round?", lo: "Failure", hi: "Perfect" },
+  { key: "tlxEffort", label: "Effort", q: "How hard did you have to work, mentally and physically, to get your result?", lo: "Very low", hi: "Very high" },
+  { key: "tlxFrustration", label: "Frustration", q: "How stressed, irritated, or discouraged did you feel during this round?", lo: "Very low", hi: "Very high" },
 ] as const;
 
 // Role-specific questions shown ABOVE the NASA-TLX. Listeners rate the message they

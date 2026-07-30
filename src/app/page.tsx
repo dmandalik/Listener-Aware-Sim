@@ -6,6 +6,17 @@ import { isMobileDevice } from "@/lib/mobile";
 
 const AGES = ["18–24", "25–34", "35–44", "45–54", "55–64", "65 or older", "Prefer not to say"];
 const GENDERS = ["Woman", "Man", "Non-binary", "Prefer to self-describe", "Prefer not to say"];
+// Field of study or work (required). No "prefer not to say"; "Other" takes free text.
+const FIELDS = [
+  "Robotics or AI specifically",
+  "Computer Science or Engineering (not robotics)",
+  "Business or Management",
+  "Arts or Humanities",
+  "Natural Sciences",
+  "Social Sciences",
+  "Medicine or Health",
+  "Other",
+];
 // Robot familiarity self-report (required), a 5-point Likert scale. Stored as 1–5;
 // point 1 is no experience at all, point 5 is using robots as part of one's job.
 const ROBOT_FAMILIARITY = [
@@ -60,6 +71,8 @@ export default function Entry() {
   const [race, setRace] = useState<string[]>([]);
   const [raceOther, setRaceOther] = useState("");
   const [robotFamiliarity, setRobotFamiliarity] = useState<number | null>(null);
+  const [field, setField] = useState("");
+  const [fieldOther, setFieldOther] = useState("");
   const [params, setParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -99,12 +112,14 @@ export default function Entry() {
         race,
         raceOther: race.includes("Other") ? raceOther.trim() || null : null,
         robotFamiliarity,
+        fieldOfStudy: field || null,
+        fieldOfStudyOther: field === "Other" ? fieldOther.trim() || null : null,
       }),
     );
     setStep("go");
     const qs = new URLSearchParams(params).toString();
     window.location.assign(qs ? `/play?${qs}` : "/play");
-  }, [params, firstName, lastName, email, age, gender, genderOther, race, raceOther, robotFamiliarity]);
+  }, [params, firstName, lastName, email, age, gender, genderOther, race, raceOther, robotFamiliarity, field, fieldOther]);
 
   const agree = useCallback(() => {
     setStep("name");
@@ -201,9 +216,10 @@ export default function Entry() {
     // be made. If a self-describe / Other option is picked, its text must be filled too.
     const genderOk = !!gender && (gender !== "Prefer to self-describe" || !!genderOther.trim());
     const raceOk = race.length > 0 && (!race.includes("Other") || !!raceOther.trim());
+    const fieldOk = !!field && (field !== "Other" || !!fieldOther.trim());
     const canStart =
       !!firstName.trim() && !!lastName.trim() && emailOk && robotFamiliarity != null &&
-      !!age && genderOk && raceOk;
+      !!age && genderOk && raceOk && fieldOk;
     // Plain helper (NOT a component) so inputs keep focus while typing.
     const choice = (
       opts: string[],
@@ -303,6 +319,11 @@ export default function Entry() {
               <div style={{ fontSize: 13, color: "var(--accent-ink)", fontWeight: 600, marginTop: 6 }}>
                 {ROBOT_FAMILIARITY[robotFamiliarity - 1]}
               </div>
+            )}
+            {label("What is your field of study or work?")}
+            {choice(FIELDS, (o) => field === o, setField)}
+            {field === "Other" && (
+              <input value={fieldOther} onChange={(e) => setFieldOther(e.target.value)} placeholder="Please specify" maxLength={120} style={{ ...fieldStyle, marginTop: 8 }} />
             )}
             {label("What is your age range?")}
             {choice(AGES, (o) => age === o, setAge)}

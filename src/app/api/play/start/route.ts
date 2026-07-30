@@ -57,10 +57,12 @@ export async function POST(req: Request) {
       race: race as string[] | null,
       raceOther: clean(body.raceOther),
       robotFamiliarity,
+      fieldOfStudy: clean(body.fieldOfStudy),
+      fieldOfStudyOther: clean(body.fieldOfStudyOther),
     };
     if (
       demo.ageRange || demo.gender || demo.genderOther || (race && race.length) ||
-      demo.raceOther || demo.robotFamiliarity != null
+      demo.raceOther || demo.robotFamiliarity != null || demo.fieldOfStudy
     ) {
       await saveSurvey({ sessionId: result.sessionId, ...demo });
     }

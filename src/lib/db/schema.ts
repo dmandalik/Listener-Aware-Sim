@@ -206,6 +206,10 @@ export const surveys = pgTable(
     // Self-reported familiarity with robots, asked once at intake (required). A 5-point
     // Likert value: 1 = not familiar at all … 5 = uses robots as part of their job.
     robotFamiliarity: integer("robot_familiarity"),
+    // Field of study or work, asked at intake (required). Free text in fieldOfStudyOther
+    // when "Other" is chosen.
+    fieldOfStudy: text("field_of_study"),
+    fieldOfStudyOther: text("field_of_study_other"),
     // Legacy end-of-study NASA-TLX (superseded by per-trial trialSurveys).
     tlxMental: integer("tlx_mental"),
     tlxPhysical: integer("tlx_physical"),
