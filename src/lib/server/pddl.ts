@@ -10,7 +10,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { participants, sessions, trials, trialSurveys } from "@/lib/db/schema";
-import { isTestParticipant } from "@/lib/test-participant";
+import { getExcludedPids } from "@/lib/test-participant";
 import { buildModel, DOMAINS, type Model, type TrialRecord } from "@/lib/pddl-core";
 
 // Load every scene map once (keyed by its `scene` id) — same files the game uses.
@@ -31,7 +31,8 @@ const keyOf = (task: string, pid: string, layout: string | null, scene: string) 
 
 interface Built { key: string; participant: string; role: string; model: Model; finishedAt: string | null; trialIndex: number; }
 
-/** Build every model (completed, non-test trials only) from the current DB state. */
+/** Build every model (completed, non-test, first-submission-only trials) from the
+ *  current DB state. */
 async function buildAll(): Promise<Built[]> {
   await ensureMigrated();
   const db = await getDb();
@@ -40,7 +41,7 @@ async function buildAll(): Promise<Built[]> {
     db.select().from(participants), db.select().from(trialSurveys),
   ])) as [any[], any[], any[], any[]];
 
-  const testPid = new Set(parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.prolificPid));
+  const excludedPid = getExcludedPids(parts); // test/dev runs + secondary (duplicate) submissions
   const sess = new Map(ss.map((s) => [s.id, s]));
   const survey = new Map(svs.map((s) => [`${s.sessionId}:${s.trialIndex}`, s]));
   const M = maps();
@@ -48,7 +49,7 @@ async function buildAll(): Promise<Built[]> {
   const out: Built[] = [];
   for (const t of ts) {
     const s = sess.get(t.sessionId);
-    if (!s || s.status !== "completed" || testPid.has(s.prolificPid)) continue; // completed, non-test only
+    if (!s || s.status !== "completed" || excludedPid.has(s.prolificPid)) continue; // completed, first-submission only
     const role = t.assignment;
     if (role !== "speaker" && role !== "novice" && role !== "expert") continue;
     const map = M[t.scene];

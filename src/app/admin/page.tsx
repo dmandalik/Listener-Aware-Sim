@@ -24,6 +24,9 @@ const TABLES = [
   "dataset", "results", "authored", "tlx", "survey", "roster", "contacts",
   "events", "trials", "sessions", "participants", "utterances", "trialSurveys",
 ] as const;
+// Anonymized downloads mirror TABLES minus `contacts`, which is nothing but name+email
+// and has no Prolific ID to anchor rows to once PII is stripped.
+const ANON_TABLES = TABLES.filter((t) => t !== "contacts");
 
 function pct(x: number | null) { return x == null ? "—" : `${Math.round(x * 100)}%`; }
 function ms(x: number | null) { return x == null ? "—" : `${(x / 1000).toFixed(1)}s`; }
@@ -213,15 +216,37 @@ export default function AdminPage() {
           </div>
 
           <div className="card" style={{ padding: 16 }}>
-            <h4 style={{ margin: "0 0 10px", color: "var(--ink-soft)" }}>Export (works while the study is running)</h4>
-            <div style={{ display: "grid", gap: 8 }}>
-              {TABLES.map((t) => (
-                <div key={t} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ width: 110, fontWeight: 600 }}>{t}</span>
-                  <button className="pill-btn" onClick={() => download(`/api/admin/export?table=${t}&format=csv`, `${t}.csv`)}>CSV</button>
-                  <button className="pill-btn" onClick={() => download(`/api/admin/export?table=${t}&format=jsonl`, `${t}.jsonl`)}>JSONL</button>
+            <h4 style={{ margin: "0 0 4px", color: "var(--ink-soft)" }}>Export (works while the study is running)</h4>
+            <p style={{ color: "var(--ink-soft)", fontSize: 12, margin: "0 0 14px", maxWidth: 720 }}>
+              Left: raw files, including participant name and email — admin/PI use only, never share
+              outside the team. Right: the same data with the Name and Email columns removed and only
+              the Prolific ID retained as identifier — safe to hand off for statistical analysis.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 24 }}>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Raw (contains PII)</div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {TABLES.map((t) => (
+                    <div key={t} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ width: 110, fontWeight: 600 }}>{t}</span>
+                      <button className="pill-btn" onClick={() => download(`/api/admin/export?table=${t}&format=csv`, `${t}.csv`)}>CSV</button>
+                      <button className="pill-btn" onClick={() => download(`/api/admin/export?table=${t}&format=jsonl`, `${t}.jsonl`)}>JSONL</button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Anonymized (for analysis / paper)</div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {ANON_TABLES.map((t) => (
+                    <div key={t} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ width: 110, fontWeight: 600 }}>{t}</span>
+                      <button className="pill-btn" onClick={() => download(`/api/admin/export?table=${t}&format=csv&anon=1`, `${t}_anonymized.csv`)}>CSV</button>
+                      <button className="pill-btn" onClick={() => download(`/api/admin/export?table=${t}&format=jsonl&anon=1`, `${t}_anonymized.jsonl`)}>JSONL</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

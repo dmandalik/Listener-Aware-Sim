@@ -10,7 +10,7 @@ import { asc, eq } from "drizzle-orm";
 import { env } from "@/lib/env";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { events, participants, sessions, surveys, trials, trialSurveys, utterances } from "@/lib/db/schema";
-import { isTestParticipant } from "@/lib/test-participant";
+import { getDuplicatePids, getExcludedPids, isTestParticipant } from "@/lib/test-participant";
 
 /** Full admin: required for destructive actions (purge, delete-session). */
 export function checkAdminKey(key: string | null | undefined): boolean {
@@ -66,18 +66,16 @@ export async function getSummary(): Promise<Summary> {
     all("utterances"),
     all("participants"),
   ]);
-  const usable = await completeSessionIds(db); // COMPLETED, non-test sessions only
-  const testPid = new Set(
-    parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.prolificPid),
-  );
+  const usable = await completeSessionIds(db); // COMPLETED, non-test, non-duplicate sessions only
+  const excludedPid = getExcludedPids(parts); // test/dev runs + secondary (duplicate) submissions
 
-  // Headline counts: real (non-test) participants only; role counts are COMPLETED only.
+  // Headline counts: real, first-submission-only participants; role counts are COMPLETED only.
   const byAssignment: Record<string, number> = { speaker: 0, novice: 0, expert: 0 };
   let completed = 0;
   let inProgress = 0;
   let abandoned = 0;
   for (const s of ss) {
-    if (testPid.has(s.prolificPid)) continue; // ignore test/dev runs entirely
+    if (excludedPid.has(s.prolificPid)) continue; // ignore test/dev runs and duplicate submissions
     if (s.status === "completed") {
       completed += 1;
       if (s.assignment && s.assignment in byAssignment) byAssignment[s.assignment] = (byAssignment[s.assignment] ?? 0) + 1;
@@ -87,8 +85,8 @@ export async function getSummary(): Promise<Summary> {
     }
   }
   // In-progress that are effectively abandoned are still counted under inProgress; the
-  // dropout number is anyone not completed (excludes test).
-  abandoned = ss.filter((s) => !testPid.has(s.prolificPid) && s.status !== "completed").length;
+  // dropout number is anyone not completed (excludes test + duplicate).
+  abandoned = ss.filter((s) => !excludedPid.has(s.prolificPid) && s.status !== "completed").length;
 
   // Condition cells: LISTENER trials (novice/expert) from complete, non-test sessions
   // only. Speaker "trials" have no outcome, so they're excluded.
@@ -321,19 +319,18 @@ export function toJsonl(rows: any[]): string {
 // abandoned part-runs never enter analysis. `roster` keeps everyone but flags who
 // completed; `survey` naturally covers only those who actually submitted one.
 
-/** Session ids that count for analysis: finished every game AND authored by a real
- *  participant (not a Test/User/blank-named admin/dev run). */
+/** Session ids that count for analysis: finished every game, authored by a real
+ *  participant (not a Test/User/blank-named admin/dev run), and the FIRST chronological
+ *  submission for that person (same name or email as an earlier submission is dropped). */
 async function completeSessionIds(db: any): Promise<Set<string>> {
   const [ss, parts] = (await Promise.all([
     db.select().from(sessions),
     db.select().from(participants),
   ])) as [any[], any[]];
-  const testPid = new Set(
-    parts.filter((p: any) => isTestParticipant(p.firstName, p.lastName)).map((p: any) => p.prolificPid),
-  );
+  const excludedPid = getExcludedPids(parts);
   return new Set<string>(
     ss
-      .filter((s: any) => s.status === "completed" && !testPid.has(s.prolificPid))
+      .filter((s: any) => s.status === "completed" && !excludedPid.has(s.prolificPid))
       .map((s: any) => s.id),
   );
 }
@@ -347,6 +344,7 @@ async function getRoster(): Promise<any[]> {
     db.select().from(trials),
   ])) as [any[], any[], any[]];
   const complete = await completeSessionIds(db);
+  const duplicatePid = getDuplicatePids(parts);
   const sessByPid = new Map<string, any>(ss.map((s: any) => [s.prolificPid, s]));
   const pidBySession = new Map<string, string>(ss.map((s: any) => [s.id, s.prolificPid]));
   const nTrials = new Map<string, number>();
@@ -369,7 +367,11 @@ async function getRoster(): Promise<any[]> {
       variant: s?.variant ?? null,
       // Test/dev run (Test/User/blank name): excluded from recruitment AND analysis.
       isTest: isTestParticipant(p.firstName, p.lastName),
-      // Did they finish the WHOLE study? Only complete, non-test rows feed the exports.
+      // Same name or email as an earlier submission: excluded from analysis, kept here
+      // (with the flag) so admins can see and audit which entries were dropped.
+      isDuplicate: duplicatePid.has(p.prolificPid),
+      // Did they finish the WHOLE study? Only complete, non-test, first-submission rows
+      // feed the exports.
       completed: s ? complete.has(s.id) : false,
       status: s?.status ?? null,
       trials: nTrials.get(p.prolificPid) ?? 0,
@@ -623,10 +625,11 @@ async function getTlx(): Promise<any[]> {
 async function getContacts(): Promise<any[]> {
   const db = await getDb();
   const parts = (await db.select().from(participants)) as any[];
+  const excludedPid = getExcludedPids(parts);
   const seen = new Set<string>();
   const out: Array<{ name: string; email: string }> = [];
   for (const p of parts) {
-    if (isTestParticipant(p.firstName, p.lastName)) continue;
+    if (excludedPid.has(p.prolificPid)) continue;
     const email = (p.email ?? "").trim();
     const name = (p.name ?? [p.firstName, p.lastName].filter(Boolean).join(" ")).trim();
     if (!email || !name) continue; // only people who actually filled the form
@@ -665,9 +668,35 @@ export const EXPORT_NAMES: ExportName[] = [
   "trialSurveys",
 ];
 
-export async function exportTable(table: ExportName, format: "csv" | "jsonl"): Promise<string> {
+// ── Anonymization (PII strip for statistical-analysis exports) ───────────────
+// Strips any column that IS a name or email field — everything else (including every
+// Prolific ID column) passes through untouched. Applied on top of the exact same
+// views/tables the raw export uses, so the anonymized side can never drift out of
+// sync with the raw one.
+const PII_FIELD = /(^name$|Name$|^email$)/i;
+
+function anonymizeRow(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (PII_FIELD.test(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+/** Tables/views eligible for anonymized download — everything except `contacts`,
+ *  which is nothing but a name+email roster and has no analysis content once PII is
+ *  stripped (it also carries no Prolific ID to anchor rows to). */
+export const ANON_EXPORT_NAMES: ExportName[] = EXPORT_NAMES.filter((t) => t !== "contacts");
+
+export async function exportTable(
+  table: ExportName,
+  format: "csv" | "jsonl",
+  opts: { anonymize?: boolean } = {},
+): Promise<string> {
   await ensureMigrated();
-  const rows = table in VIEWS ? await VIEWS[table]!() : await all(table as TableName);
+  let rows = table in VIEWS ? await VIEWS[table]!() : await all(table as TableName);
+  if (opts.anonymize) rows = rows.map(anonymizeRow);
   return format === "csv" ? toCsv(rows) : toJsonl(rows);
 }
 
