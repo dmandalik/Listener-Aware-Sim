@@ -668,11 +668,18 @@ export const EXPORT_NAMES: ExportName[] = [
   "trialSurveys",
 ];
 
-// ── Anonymization (PII strip for statistical-analysis exports) ───────────────
-// Strips any column that IS a name or email field — everything else (including every
-// Prolific ID column) passes through untouched. Applied on top of the exact same
-// views/tables the raw export uses, so the anonymized side can never drift out of
-// sync with the raw one.
+// ── Anonymization (row drop + PII strip for statistical-analysis exports) ────
+// Two independent steps, both applied ONLY on the anonymized side — the raw side is
+// never touched:
+//  1. DROP every row belonging to a test/dev participant or a secondary (duplicate)
+//     submission — identity-based, regardless of session status, so a dev poking
+//     around as "Test User" never appears in any anonymized file, even mid-session.
+//  2. STRIP any column that IS a name or email field — everything else (including
+//     every Prolific ID column) passes through untouched.
+// `dataset`/`results`/`authored`/`survey`/`tlx` already exclude test/duplicate rows on
+// BOTH sides (they're built from `completeSessionIds`, which already factors in
+// `getExcludedPids`) — step 1 is a no-op there and only matters for the raw tables and
+// `roster`, which intentionally show everyone on the raw side for admin audit.
 const PII_FIELD = /(^name$|Name$|^email$)/i;
 
 function anonymizeRow(row: Record<string, unknown>): Record<string, unknown> {
@@ -682,6 +689,44 @@ function anonymizeRow(row: Record<string, unknown>): Record<string, unknown> {
     out[k] = v;
   }
   return out;
+}
+
+/** Which field on a row identifies the participant (or their session), keyed per
+ *  export name — used only to drop excluded rows for the anonymized side. Views not
+ *  listed here already exclude test/duplicate rows unconditionally (see above). */
+const ROW_PID_FIELD: Partial<Record<ExportName, string>> = {
+  participants: "prolificPid",
+  sessions: "prolificPid",
+  roster: "prolificPid",
+};
+const ROW_SESSION_FIELD: Partial<Record<ExportName, string>> = {
+  trials: "sessionId",
+  events: "sessionId",
+  trialSurveys: "sessionId",
+  utterances: "authorSessionId",
+};
+
+async function excludedIdentities(): Promise<{ pid: Set<string>; sessionId: Set<string> }> {
+  const db = await getDb();
+  const [parts, ss] = (await Promise.all([
+    db.select().from(participants),
+    db.select().from(sessions),
+  ])) as [any[], any[]];
+  const pid = getExcludedPids(parts);
+  const sessionId = new Set<string>(ss.filter((s: any) => pid.has(s.prolificPid)).map((s: any) => s.id));
+  return { pid, sessionId };
+}
+
+async function dropExcludedRows(table: ExportName, rows: any[]): Promise<any[]> {
+  const pidField = ROW_PID_FIELD[table];
+  const sessionField = ROW_SESSION_FIELD[table];
+  if (!pidField && !sessionField) return rows; // already excluded upstream (see comment above)
+  const { pid, sessionId } = await excludedIdentities();
+  return rows.filter((r) => {
+    if (pidField && pid.has(r[pidField])) return false;
+    if (sessionField && sessionId.has(r[sessionField])) return false;
+    return true;
+  });
 }
 
 /** Tables/views eligible for anonymized download — everything except `contacts`,
@@ -696,7 +741,10 @@ export async function exportTable(
 ): Promise<string> {
   await ensureMigrated();
   let rows = table in VIEWS ? await VIEWS[table]!() : await all(table as TableName);
-  if (opts.anonymize) rows = rows.map(anonymizeRow);
+  if (opts.anonymize) {
+    rows = await dropExcludedRows(table, rows);
+    rows = rows.map(anonymizeRow);
+  }
   return format === "csv" ? toCsv(rows) : toJsonl(rows);
 }
 
