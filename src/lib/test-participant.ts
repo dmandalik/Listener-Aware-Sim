@@ -53,12 +53,23 @@ export function getDuplicatePids<T extends DedupCandidate>(participants: T[]): S
   return duplicates;
 }
 
-/** Union of test/dev pids and secondary-submission pids — the full "never enter
- *  analysis" exclusion set for a given participant snapshot. */
+/** Prolific pids that must be excluded everywhere regardless of name-based detection —
+ *  e.g. a dev/test run made under a real developer's own name, which no amount of
+ *  "test"-substring matching can catch. Referenced by ID only, deliberately, so no
+ *  participant's actual name has to live in source. This is the single source of
+ *  truth: both the DB-level purge (`writer.ts`'s `purgeHardExcludedPids`, which
+ *  physically deletes the rows on next boot) and every analysis/export view below
+ *  read from this same list, so the exclusion is guaranteed the moment this code runs
+ *  — it doesn't depend on the physical delete having landed yet. */
+export const HARD_EXCLUDED_PIDS: string[] = ["DEV_436edb01"];
+
+/** Union of test/dev pids, secondary-submission pids, and `HARD_EXCLUDED_PIDS` — the
+ *  full "never enter analysis" exclusion set for a given participant snapshot. */
 export function getExcludedPids<T extends DedupCandidate>(participants: T[]): Set<string> {
   const excluded = new Set<string>(
     participants.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.prolificPid),
   );
   for (const pid of getDuplicatePids(participants)) excluded.add(pid);
+  for (const pid of HARD_EXCLUDED_PIDS) excluded.add(pid);
   return excluded;
 }

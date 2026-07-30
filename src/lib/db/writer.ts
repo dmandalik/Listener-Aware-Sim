@@ -28,11 +28,22 @@ import {
   type Event,
   type EventInput,
 } from "@/lib/events";
-import { isTestParticipant } from "@/lib/test-participant";
+import { HARD_EXCLUDED_PIDS, isTestParticipant } from "@/lib/test-participant";
 
 /** Wall-clock stamp for events. Isolated so tests can inject a clock if needed. */
 export function now(): number {
   return Date.now();
+}
+
+/** True for a test/dev run (name-based) OR a `HARD_EXCLUDED_PIDS` entry (ID-based —
+ *  for a dev run under a real developer's own name, which no name heuristic catches).
+ *  Used everywhere recruitment/pool-serving must never count or reserve for such a run. */
+function isExcludedParticipant(
+  pid: string,
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): boolean {
+  return isTestParticipant(firstName, lastName) || HARD_EXCLUDED_PIDS.includes(pid);
 }
 
 /** Session ids belonging to a test/dev participant (Test/User/blank name). Their play
@@ -47,7 +58,7 @@ async function testSessionIds(db: any): Promise<Set<string>> {
     Array<{ id: string; pid: string }>,
     Array<{ pid: string; firstName: string | null; lastName: string | null }>,
   ];
-  const testPid = new Set(parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.pid));
+  const testPid = new Set(parts.filter((p) => isExcludedParticipant(p.pid, p.firstName, p.lastName)).map((p) => p.pid));
   return new Set(ss.filter((s) => testPid.has(s.pid)).map((s) => s.id));
 }
 
@@ -62,7 +73,7 @@ export async function isTestPid(prolificPid: string): Promise<boolean> {
     firstName: string | null;
     lastName: string | null;
   }>;
-  return p ? isTestParticipant(p.firstName, p.lastName) : false;
+  return p ? isExcludedParticipant(prolificPid, p.firstName, p.lastName) : false;
 }
 
 // ── Participants ─────────────────────────────────────────────────────────────
@@ -165,6 +176,7 @@ async function countAssignmentsByStatus(
   const db = await getDb();
   const rows = (await db
     .select({
+      pid: sessions.prolificPid,
       assignment: sessions.assignment,
       firstName: participants.firstName,
       lastName: participants.lastName,
@@ -172,13 +184,14 @@ async function countAssignmentsByStatus(
     .from(sessions)
     .innerJoin(participants, eq(sessions.prolificPid, participants.prolificPid))
     .where(eq(sessions.status, status))) as Array<{
+    pid: string;
     assignment: string | null;
     firstName: string | null;
     lastName: string | null;
   }>;
   const out = { speaker: 0, novice: 0, expert: 0 };
   for (const r of rows) {
-    if (isTestParticipant(r.firstName, r.lastName)) continue; // never count test/dev runs
+    if (isExcludedParticipant(r.pid, r.firstName, r.lastName)) continue; // never count test/dev runs
     if (r.assignment && r.assignment in out) out[r.assignment as keyof typeof out] += 1;
   }
   return out;
@@ -297,16 +310,9 @@ export async function deleteSessionsByPid(
   return result;
 }
 
-/**
- * Known-bad dev/test Prolific pids that slipped through name-based test detection
- * (a real developer name, no "test"/"user" in it — e.g. the project's very first
- * dev run) — kept by ID only, never by name. Purged automatically on every boot (see
- * `purgeHardExcludedPids`) so every environment — a teammate's laptop, prod — self-heals
- * the moment it runs this code, with no manual step and nothing PII-bearing in source.
- */
-const HARD_EXCLUDED_PIDS: string[] = ["DEV_436edb01"];
-
-/** Purges `HARD_EXCLUDED_PIDS` if present, no-ops harmlessly if not. Not memoized here
+/** Purges `HARD_EXCLUDED_PIDS` (from `@/lib/test-participant` — the single source of
+ *  truth also used by every analysis/export view) if present, no-ops harmlessly if
+ *  not. Not memoized here
  *  — `ensureMigrated()` already runs this at most once per warm instance, so a second
  *  layer of caching would only make it harder to reason about (and to test). */
 export function purgeHardExcludedPids(): Promise<void> {
@@ -501,7 +507,7 @@ async function servableAuthorSessions(db: any): Promise<Set<string>> {
     Array<{ pid: string; firstName: string | null; lastName: string | null }>,
   ];
   const testPid = new Set(
-    parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.pid),
+    parts.filter((p) => isExcludedParticipant(p.pid, p.firstName, p.lastName)).map((p) => p.pid),
   );
   return new Set(ss.filter((s) => s.status === "completed" && !testPid.has(s.pid)).map((s) => s.id));
 }
@@ -551,7 +557,7 @@ async function coverageByUtterance(
     Array<{ pid: string; firstName: string | null; lastName: string | null }>,
   ];
   const testPid = new Set(
-    parts.filter((p) => isTestParticipant(p.firstName, p.lastName)).map((p) => p.pid),
+    parts.filter((p) => isExcludedParticipant(p.pid, p.firstName, p.lastName)).map((p) => p.pid),
   );
   const sessMeta = new Map(ss.map((s) => [s.id, { status: s.status, test: testPid.has(s.pid) }]));
 
