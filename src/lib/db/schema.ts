@@ -65,6 +65,12 @@ export const sessions = pgTable(
     // Which layout regime this run belongs to: "single" = 1 layout/task (3 trials),
     // "multi" = N layouts/task. Lets the two toggle states be analyzed separately.
     variant: text("variant", { enum: ["single", "multi"] }),
+    // Task-order counterbalancing sequence (1–6): which of the 3! task permutations
+    // this run received. Assigned by a least-filled round-robin so orders stay balanced
+    // within each assignment cell. Legacy fixed-order runs (teleop→repair→retrieval) are
+    // backfilled to 1. Scene order within a task is randomized independently and is
+    // recoverable per-trial from (trialIndex, layout). See config.ts ORDER_SEQUENCES.
+    orderSeq: integer("order_seq"),
     // Assigned experiment plan for this run: ordered conditions + seeds.
     plan: jsonb("plan").notNull(),
     status: text("status", {

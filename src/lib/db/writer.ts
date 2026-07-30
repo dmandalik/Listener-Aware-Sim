@@ -149,6 +149,7 @@ export interface StartSessionArgs {
   plan: unknown; // ordered conditions + seeds for this run
   assignment?: "speaker" | "novice" | "expert" | null;
   variant?: "single" | "multi" | null;
+  orderSeq?: number | null; // task-order counterbalancing sequence (1–6)
 }
 
 export async function startSession(a: StartSessionArgs): Promise<SessionRow> {
@@ -162,6 +163,7 @@ export async function startSession(a: StartSessionArgs): Promise<SessionRow> {
       plan: a.plan,
       assignment: a.assignment ?? null,
       variant: a.variant ?? null,
+      orderSeq: a.orderSeq ?? null,
     })
     .returning();
   return row;
@@ -210,6 +212,39 @@ export function countCompletedAssignments() {
  *  participants — used to avoid over-recruiting a role beyond its remaining quota. */
 export function countActiveAssignments() {
   return countAssignmentsByStatus("started");
+}
+
+/** Live per-sequence counts of genuine (non-test) runs for one assignment cell, keyed
+ *  by orderSeq 1…6. Counts both in-flight and completed runs so two people starting at
+ *  once don't both land on the same emptiest order. Legacy fixed-order runs are
+ *  backfilled to Seq 1 (migration), so they seed this distribution — new participants
+ *  then fill the emptier orders first. Feeds leastFilledSeq for order counterbalancing. */
+export async function countOrderSeqsByAssignment(
+  assignment: "speaker" | "novice" | "expert",
+): Promise<Record<number, number>> {
+  const db = await getDb();
+  const rows = (await db
+    .select({
+      pid: sessions.prolificPid,
+      orderSeq: sessions.orderSeq,
+      firstName: participants.firstName,
+      lastName: participants.lastName,
+    })
+    .from(sessions)
+    .innerJoin(participants, eq(sessions.prolificPid, participants.prolificPid))
+    .where(
+      and(
+        eq(sessions.assignment, assignment),
+        inArray(sessions.status, ["started", "completed"]),
+      ),
+    )) as Array<{ pid: string; orderSeq: number | null; firstName: string | null; lastName: string | null }>;
+  const out: Record<number, number> = {};
+  for (const r of rows) {
+    if (isExcludedParticipant(r.pid, r.firstName, r.lastName)) continue; // never count test/dev runs
+    const seq = r.orderSeq ?? 1; // null (pre-migration read) counts as the legacy order
+    out[seq] = (out[seq] ?? 0) + 1;
+  }
+  return out;
 }
 
 export async function endSession(

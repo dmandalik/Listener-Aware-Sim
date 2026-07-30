@@ -18,12 +18,15 @@ import type { Condition, ListenerView, TaskId } from "@/lib/types";
 import type { EventInput } from "@/lib/events";
 import {
   buildMainStudy,
+  leastFilledSeq,
   loadRecruitment,
   loadStudy,
   loadStudyPlan,
+  ORDER_SEQUENCES,
   roleForCompletions,
   type ResolvedStudy,
   type ResolvedTrial,
+  type StudyOrdering,
 } from "@/lib/config";
 import { ensureMigrated, getDb } from "@/lib/db/client";
 import { trials, sessions, utterances } from "@/lib/db/schema";
@@ -31,6 +34,7 @@ import {
   closeTrial,
   countCompletedAssignments,
   countActiveAssignments,
+  countOrderSeqsByAssignment,
   countUtterances,
   drawUtterance,
   endSession,
@@ -432,6 +436,7 @@ export async function startListenerSession(args: {
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null; // 'novice' | 'expert' when routed from /play
   variant?: "single" | "multi" | null;
+  orderSeq?: number | null; // task-order counterbalancing sequence (1–6)
 }): Promise<TrialPayload> {
   await ready();
   const study = args.study ?? studyByName(args.studyName ?? "listener_pilot");
@@ -478,7 +483,7 @@ export async function startListenerSession(args: {
     showTrialFeedback: study.showTrialFeedback,
     trials: eligible,
   };
-  await startSession({ id: sid, prolificPid: args.prolific.pid, role: "listener", plan, assignment, variant: args.variant ?? null });
+  await startSession({ id: sid, prolificPid: args.prolific.pid, role: "listener", plan, assignment, variant: args.variant ?? null, orderSeq: args.orderSeq ?? null });
 
   await writeEvent({
     ev: "session_start",
@@ -892,6 +897,7 @@ export async function startSpeakerSession(args: {
   dataSharingConsent?: boolean | null;
   assignment?: Assignment | null;
   variant?: "single" | "multi" | null;
+  orderSeq?: number | null; // task-order counterbalancing sequence (1–6)
 }): Promise<SpeakerTrialPayload> {
   await ready();
   const study = args.study ?? studyByName(args.studyName ?? "speaker_pilot");
@@ -924,6 +930,7 @@ export async function startSpeakerSession(args: {
     plan,
     assignment: args.assignment ?? "speaker",
     variant: args.variant ?? null,
+    orderSeq: args.orderSeq ?? null,
   });
   await writeEvent({
     ev: "session_start",
@@ -995,6 +1002,34 @@ async function pickAssignment(): Promise<Assignment> {
   return roleForCompletions(loadRecruitment(), completed, active);
 }
 
+/** The task-order sequence (1–6) for the next run in this assignment cell: the emptiest
+ *  order, seeded by the already-collected runs (all fixed-order = Seq 1). Balances task
+ *  order WITHIN each assignment cell so order never drifts against skill. */
+async function pickOrderSeq(assignment: Assignment): Promise<number> {
+  const counts = await countOrderSeqsByAssignment(assignment);
+  return leastFilledSeq(counts);
+}
+
+/** Build the per-participant study ordering for a chosen sequence: the task permutation
+ *  from ORDER_SEQUENCES, plus a scene order randomized INDEPENDENTLY within each task
+ *  (Fisher–Yates over the layout indices). Full counterbalancing on task order (the big
+ *  confound) with balance-in-expectation on scene order. */
+function makeOrdering(seq: number): StudyOrdering {
+  const plan = loadStudyPlan();
+  const taskOrder = ORDER_SEQUENCES[seq - 1] ?? ORDER_SEQUENCES[0]!;
+  const layoutOrder: StudyOrdering["layoutOrder"] = {};
+  for (const task of taskOrder) {
+    const n = Math.min(plan.layoutsPerTask, (plan.layouts[task] ?? []).length);
+    const idx = Array.from({ length: n }, (_, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idx[i], idx[j]] = [idx[j]!, idx[i]!];
+    }
+    layoutOrder[task] = idx;
+  }
+  return { taskOrder, layoutOrder };
+}
+
 export interface AssignResult {
   kind: "speaker" | "listener";
   assignment: Assignment;
@@ -1022,6 +1057,13 @@ export async function assignAndStart(args: {
     /* non-fatal: proceed with assignment */
   }
   const assignment = await pickAssignment();
+  // Counterbalance task order: assign the emptiest of the 6 permutations for this cell
+  // (seeded by prior runs), and build a per-participant study with that order + a
+  // scene order shuffled independently per task. Speakers and listeners use the same
+  // mechanism, so authoring position is counterbalanced identically to listening
+  // position (serving pairs on utteranceId, so decoupling the two is harmless).
+  const orderSeq = await pickOrderSeq(assignment);
+  const ordering = makeOrdering(orderSeq);
   // The main study is assembled from the layout registry (study-plan.json), so the
   // single `layoutsPerTask` toggle switches everyone between the 3-trial and the
   // N-layout flow — speakers and listeners always from the same registry. The run's
@@ -1035,10 +1077,11 @@ export async function assignAndStart(args: {
     email: args.email,
     dataSharingConsent: args.dataSharingConsent,
     variant,
+    orderSeq,
   };
   if (assignment === "speaker") {
     const p = await startSpeakerSession({
-      study: buildMainStudy("speaker"),
+      study: buildMainStudy("speaker", ordering),
       prolific: args.prolific,
       assignment: "speaker",
       ...common,
@@ -1046,7 +1089,7 @@ export async function assignAndStart(args: {
     return { kind: "speaker", assignment, sessionId: p.sessionId };
   }
   const p = await startListenerSession({
-    study: buildMainStudy("listener"),
+    study: buildMainStudy("listener", ordering),
     prolific: args.prolific,
     assignment,
     ...common,

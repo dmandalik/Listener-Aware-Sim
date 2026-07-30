@@ -18,7 +18,7 @@ type Analysis = {
   workloadDimensions: Array<{ key: string; label: string; novice: number | null; expert: number | null }>;
   generatedAt: string | null;
 };
-type SessionRow = { id: string; pid: string; role: string; assignment: string | null; status: string; startedAt: string; endedAt: string | null; trials: number };
+type SessionRow = { id: string; pid: string; role: string; assignment: string | null; orderSeq: number | null; status: string; startedAt: string; endedAt: string | null; trials: number };
 
 const TABLES = [
   "dataset", "results", "authored", "tlx", "survey", "roster", "contacts",
@@ -477,11 +477,11 @@ export default function AdminPage() {
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr)", gap: 18, alignItems: "start" }}>
           <div className="card" style={{ padding: 12, overflowX: "auto", maxHeight: "70vh", overflowY: "auto" }}>
             <table className="admin-table">
-              <thead><tr><th>PID</th><th>Role</th><th>Status</th><th>Trials</th></tr></thead>
+              <thead><tr><th>PID</th><th>Role</th><th>Order</th><th>Status</th><th>Trials</th></tr></thead>
               <tbody>
                 {(sessions ?? []).map((r) => (
                   <tr key={r.id} className="clickable" onClick={() => openSession(r.id)}>
-                    <td>{r.pid}</td><td>{r.assignment ?? r.role}</td><td>{r.status}</td><td>{r.trials}</td>
+                    <td>{r.pid}</td><td>{r.assignment ?? r.role}</td><td>{r.orderSeq ?? "—"}</td><td>{r.status}</td><td>{r.trials}</td>
                   </tr>
                 ))}
               </tbody>

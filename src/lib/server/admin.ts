@@ -365,6 +365,7 @@ async function getRoster(): Promise<any[]> {
       email: p.email,
       role: (s?.assignment ?? p.role) as string | null, // novice | expert | speaker
       variant: s?.variant ?? null,
+      orderSeq: s?.orderSeq ?? null, // task-order counterbalancing sequence (1–6)
       // Test/dev run (Test/User/blank name): excluded from recruitment AND analysis.
       isTest: isTestParticipant(p.firstName, p.lastName),
       // Same name or email as an earlier submission: excluded from analysis, kept here
@@ -762,6 +763,7 @@ export async function listSessions() {
       pid: s.prolificPid,
       role: s.role,
       assignment: s.assignment,
+      orderSeq: s.orderSeq ?? null,
       status: s.status,
       startedAt: s.startedAt,
       endedAt: s.endedAt,

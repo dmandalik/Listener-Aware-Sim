@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { Condition } from "@/lib/types";
+import type { Condition, TaskId } from "@/lib/types";
 
 const CONFIG_ROOT = join(process.cwd(), "src", "config");
 const CONDITIONS_DIR = join(CONFIG_ROOT, "conditions");
@@ -576,16 +576,70 @@ export function loadStudyPlan(): StudyPlan {
   return parsed.data;
 }
 
+// ── Order counterbalancing (§ study design) ───────────────────────────────────
+// Task order is a confound: with a single fixed order, task identity is perfectly
+// aliased with serial position (practice/fatigue). With t = 3 tasks, full
+// counterbalancing is all 3! = 6 permutations — cheap and strictly better than a
+// Latin square (which balances position but not first-order carryover). Each run is
+// assigned one of these, round-robin by least-filled cell (see leastFilledSeq), so
+// orders stay balanced within each assignment. Sequence numbers 1–6 are the DB
+// `orderSeq` value; Seq 1 is the historical fixed order (teleop→repair→retrieval).
+export const ORDER_SEQUENCES: TaskId[][] = [
+  ["teleop", "repair", "retrieval"], // Seq 1 — legacy fixed order
+  ["teleop", "retrieval", "repair"], // Seq 2
+  ["repair", "teleop", "retrieval"], // Seq 3
+  ["repair", "retrieval", "teleop"], // Seq 4
+  ["retrieval", "teleop", "repair"], // Seq 5
+  ["retrieval", "repair", "teleop"], // Seq 6
+];
+export const NUM_ORDER_SEQUENCES = ORDER_SEQUENCES.length; // 6
+
+/** Ordering to hand to buildMainStudy: the task permutation for this run, plus the
+ *  per-task order of layout indices (scene order is randomized independently within
+ *  each task — exact balance on the big confound, balance-in-expectation on scenes). */
+export interface StudyOrdering {
+  taskOrder: TaskId[];
+  layoutOrder: Partial<Record<TaskId, number[]>>; // task → ordered layout indices
+}
+
+/** Least-filled round-robin over the 6 order sequences. Given the live per-sequence
+ *  counts (1-indexed 1…6; missing → 0), pick the emptiest, ties broken by lowest
+ *  sequence number. Seeding these counts with the already-collected fixed-order runs
+ *  (all Seq 1) makes new participants preferentially fill Seq 2–6 first, pushing the
+ *  pooled dataset toward balance rather than piling onto the saturated order. Pure so
+ *  it can be unit-tested without a database. */
+export function leastFilledSeq(counts: Record<number, number>): number {
+  let bestSeq = 1;
+  let bestCount = Infinity;
+  for (let seq = 1; seq <= NUM_ORDER_SEQUENCES; seq++) {
+    const c = counts[seq] ?? 0;
+    if (c < bestCount) {
+      bestCount = c;
+      bestSeq = seq;
+    }
+  }
+  return bestSeq;
+}
+
 /** Assemble the main speaker/listener study from the layout registry: the first
- *  `layoutsPerTask` layouts of each task, grouped by task in `taskOrder`. With
- *  layoutsPerTask=1 this reproduces the classic 3-trial study exactly. */
-export function buildMainStudy(role: "speaker" | "listener"): ResolvedStudy {
+ *  `layoutsPerTask` layouts of each task, grouped by task. With no `ordering` this
+ *  reproduces the classic fixed-order study (config `taskOrder`, layout index order);
+ *  pass an `ordering` to counterbalance task order and rotate scenes per participant.
+ *  layoutsPerTask=1 reproduces the classic 3-trial study exactly. */
+export function buildMainStudy(
+  role: "speaker" | "listener",
+  ordering?: StudyOrdering,
+): ResolvedStudy {
   const plan = loadStudyPlan();
+  const taskOrder: TaskId[] = ordering?.taskOrder ?? (plan.taskOrder as TaskId[]);
   const trials: ResolvedTrial[] = [];
-  for (const task of plan.taskOrder) {
+  for (const task of taskOrder) {
     const layouts = plan.layouts[task] ?? [];
     const n = Math.min(plan.layoutsPerTask, layouts.length);
-    for (let i = 0; i < n; i++) {
+    // Default layout order is the registry order [0,1,…]; an ordering may shuffle it.
+    const idxOrder = ordering?.layoutOrder?.[task] ?? Array.from({ length: n }, (_, i) => i);
+    for (const i of idxOrder) {
+      if (i < 0 || i >= n) continue;
       const L = layouts[i]!;
       trials.push(
         resolveTrial(
