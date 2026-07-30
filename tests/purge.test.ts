@@ -15,7 +15,7 @@ process.env.PGLITE_DATA_DIR = "memory://purge-test";
 
 import { eq } from "drizzle-orm";
 import { ensureMigrated, getDb } from "@/lib/db/client";
-import { events, participants, sessions, surveys, trials, utterances } from "@/lib/db/schema";
+import { events, participants, sessions, surveys, trialSurveys, trials, utterances } from "@/lib/db/schema";
 import {
   countActiveAssignments,
   countCompletedAssignments,
@@ -232,6 +232,7 @@ describe("purgeIncompleteSessions", () => {
       assignment: "novice", utteranceId: uid,
     });
     await db.update(trials).set({ endedAt: new Date(), correct: true }).where(eq(trials.id, tId));
+    await db.insert(trialSurveys).values({ sessionId: dev, trialIndex: 0, tlxMental: 50 });
 
     const res = await deleteSessionsByPid(["DEV_LISTENER"]);
     expect(res.sessions).toBe(1);
@@ -245,6 +246,9 @@ describe("purgeIncompleteSessions", () => {
     expect(u.completedNovice).toBe(0);
     expect(u.listenerTrials).toBe(0);
     expect(u.successRate).toBeNull();
+    // Its per-trial NASA-TLX row must go too — previously left orphaned (schema.ts's
+    // trialSurveys wasn't in eraseSessions' cascade).
+    expect((await db.select().from(trialSurveys).where(eq(trialSurveys.sessionId, dev))) as any[]).toHaveLength(0);
   });
 
   it("recruitment counts exclude test-name, blank-name, and unfinished runs", async () => {

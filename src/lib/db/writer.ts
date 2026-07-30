@@ -298,6 +298,22 @@ export async function deleteSessionsByPid(
 }
 
 /**
+ * Known-bad dev/test Prolific pids that slipped through name-based test detection
+ * (a real developer name, no "test"/"user" in it — e.g. the project's very first
+ * dev run) — kept by ID only, never by name. Purged automatically on every boot (see
+ * `purgeHardExcludedPids`) so every environment — a teammate's laptop, prod — self-heals
+ * the moment it runs this code, with no manual step and nothing PII-bearing in source.
+ */
+const HARD_EXCLUDED_PIDS: string[] = ["DEV_436edb01"];
+
+/** Purges `HARD_EXCLUDED_PIDS` if present, no-ops harmlessly if not. Not memoized here
+ *  — `ensureMigrated()` already runs this at most once per warm instance, so a second
+ *  layer of caching would only make it harder to reason about (and to test). */
+export function purgeHardExcludedPids(): Promise<void> {
+  return deleteSessionsByPid(HARD_EXCLUDED_PIDS).then(() => undefined);
+}
+
+/**
  * Recompute EVERY utterance's pool counters from the trials that reference it — the
  * single source of truth. Fixes any drift (e.g. a session removed before counter
  * rollback existed left phantom completions). Idempotent: run it any time.
@@ -376,6 +392,7 @@ async function eraseSessions(
   await db.delete(events).where(inArray(events.sessionId, ids));
   await db.delete(trials).where(inArray(trials.sessionId, ids));
   await db.delete(surveys).where(inArray(surveys.sessionId, ids));
+  await db.delete(trialSurveys).where(inArray(trialSurveys.sessionId, ids));
   await db.delete(utterances).where(inArray(utterances.authorSessionId, ids));
   await db.delete(sessions).where(inArray(sessions.id, ids));
 

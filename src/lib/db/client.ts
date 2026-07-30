@@ -72,6 +72,10 @@ export function ensureMigrated(): Promise<void> {
         const { migrate } = await import("drizzle-orm/pglite/migrator");
         await migrate(h.db as any, { migrationsFolder: folder });
       }
+      // One-time cleanup of known-bad dev/test rows (see writer.ts). Dynamic import
+      // avoids a static circular dependency (writer.ts imports this module).
+      const { purgeHardExcludedPids } = await import("./writer");
+      await purgeHardExcludedPids();
     })();
   }
   return migrated;
